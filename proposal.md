@@ -58,4 +58,5 @@ We will be developing our program on Windows in Visual Studio 2015 using the [Nv
 
 ### Volumetric Rendering
 - [Physically Based Rendering, From Theory to Implementation](http://www.pbrt.org/)
-
+- [Light Transport in Participating Media](https://www.cs.dartmouth.edu/~wjarosz/publications/dissertation/chapter4.pdf)
+- [Rendering Participating Media with Bidirectional Path Tracing](http://luthuli.cs.uiuc.edu/~daf/courses/rendering/papers/lafortune96rendering.pdf)
