@@ -38,9 +38,9 @@
     <h2>Summary</h2>
     <p>God Rays (also known as Crepuscular rays) are rays of sunlight that appear through the atmosphere. They appear radiating
         through clouds in the early morning and late evening. However, they also can appear in interior settings when sunlight
-        streams through a small opening in the form. The appearance of the light as is passes through space can can a strong
+        streams through a small opening in the form. The appearance of the light as is passes through space can have a strong
         phenomenological effect. The image above shows the Pantheon, a classical Roman structure, that was designed with
-        a small oculus at the top create this powerful and awe inspiring effect.</p>
+        a small oculus at the top to create this powerful and awe inspiring effect.</p>
     <h2>Problem Description</h2>
     <p>The ability to render the god ray in a realistic and compelling way requires a carefully crafted 3d model and the ability
         to render the attenuation and scattering of light as is passes through a medium. For exploring this effect in an
@@ -63,7 +63,7 @@
     <p>Our first primary goal is to create a program capable of raytracing volumetric effects on the GPU. Since both of us have
         Nvidia GPUs, this program will be developed with the Nvidia Optix API which makes use of the CUDA parallel programming
         platform. Since a major part of our proposal is for fast rendering, the raytraced view of the scene will best be
-        displayed through the program window. There are several requirements our program outlined below:</p>
+        displayed through the program window. There are several requirements of our program outlined below:</p>
     <ul>
         <li>An OpenGL GUI for viewing the rendering</li>
         <li>A progressive rendering mode where the program will gradually update the entire image, refining it from low quality
@@ -81,8 +81,8 @@
     <p>Our second primary goal for the project is to implement volumetric rendering. In order to render god rays in our scene,
         we will initially consider Homogeneous mediums. A large component of this goal will require us to research methods
         for implementing this technique but can initially be broken down into an attenuation component and a scattering component.
-        It will be imperative that we consider the implementation of this goal with respect to GPU and therefore many unforseen
-        challenges may arise. </p>
+        It will be imperative that we consider the implementation of this goal with respect to the GPU and therefore many
+        unforseen challenges may arise. </p>
 
     <h4>Goal 3: Performance Analysis</h4>
     <p>The primary motivation for looking into raytracing options on the GPU is for performance. By performance, we mean the
