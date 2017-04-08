@@ -52,10 +52,10 @@ For week four we will be implementing the second portion of the volumetric rende
 
 ## Resources
 ### GPU Rendering
-We will be developing our program on Windows in Visual Studio 2015 using the Nvidia CUDA v8.0 toolkit and OptiX SDK. We will be testing our program with the GeForce 1080 and Quadro M4000 GPUs.
-- Nvidia Optix Developer Programming Guide, API Reference, and Forum
+We will be developing our program on Windows in Visual Studio 2015 using the [Nvidia CUDA v8.0 toolkit](https://developer.nvidia.com/cuda-toolkit) and [OptiX SDK](https://developer.nvidia.com/optix). We will be testing our program with the GeForce 1080 and Quadro M4000 GPUs.
+- Nvidia Optix Developer Programming Guide, API Reference, and [Forum](https://devtalk.nvidia.com/default/board/90/)
 
 
 ### Volumetric Rendering
-- Physically Based Rendering, From Theory to Implementation -
+- [Physically Based Rendering, From Theory to Implementation](http://www.pbrt.org/)
 
