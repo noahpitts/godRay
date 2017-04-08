@@ -7,12 +7,33 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/9.9.0/styles/default.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.6.0/katex.min.css">
     <link rel="stylesheet" href="https://gitcdn.xyz/repo/goessner/mdmath/master/css/mdmath.css">
+    <meta http-equiv="content-type" content="text/html; charset=utf-8" />
+    <link href="https://fonts.googleapis.com/css?family=Open+Sans|Source+Sans+Pro" rel="stylesheet">
+
+    <style>
+        body {
+            padding: 100px;
+            width: 960px;
+            margin: auto;
+            text-align: left;
+            font-weight: 300;
+            font-family: 'Open Sans', sans-serif;
+            color: #121212;
+        }
+        
+        h1,
+        h2,
+        h3,
+        h4 {
+            font-family: 'Source Sans Pro', sans-serif;
+        }
+    </style>
 </head>
 
 <body class="markdown-body">
     <h1>godRay</h1>
     <h2>GPU Acceleration of Volumetric Rendering | Isak Karlsson | Noah Pitts</h2>
-    <img src="./img/Internal_Pantheon_Light.jpg" align="middle" width="80%" />
+    <img src="./img/Internal_Pantheon_Light.jpg" align="middle" width="100%" />
     <figcaption align="middle" class="cap">God Rays through Pantheon</figcaption>
     <h2>Summary</h2>
     <p>God Rays (also known as Crepuscular rays) are rays of sunlight that appear through the atmosphere. They appear radiating
@@ -47,7 +68,7 @@
         <li>An OpenGL GUI for viewing the rendering</li>
         <li>A progressive rendering mode where the program will gradually update the entire image, refining it from low quality
             to final result rather than focusing on one small part of the image at a time (as in project 3). Progressive
-            rendering will allows us to debug the program mush quicker.</li>
+            rendering will allows us to debug the program much quicker.</li>
         <li>Allow for the importing of OBJ files created in an external modeling application, initial geometry in the models
             will be simple and become more complex as time permits</li>
         <li>A sunlight (directional parallel light rays)</li>
@@ -81,7 +102,7 @@
         would require us to implement two more features: HDRi lighting to represent the skylight, and combinations of homogeneous
         and non-homogeneous mediums in the scene. Non-homogeneous mediums would be necessary for clouds. The following image
         shows a scene that may be attempted with such additions.</p>
-    <img src="./img/External_Light.jpg" align="middle" width="80%" />
+    <img src="./img/External_Light.jpg" align="middle" width="100%" />
     <figcaption align="middle" class="cap">God Rays through Clouds</figcaption>
     <h2>Schedule</h2>
     <h3>Week 1: Research, Environment, Resources</h3>
