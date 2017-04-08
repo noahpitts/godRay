@@ -3,3 +3,53 @@
 
 
 
+## Summary
+
+
+## Problem Description
+God Rays (also known as Crepuscular rays) are rays of sunlight that appear through the atmosphere. They appear radiating through clouds in the early morning and late evening. However, they also can appear in interior settings when sunlight streams through a small opening in the form. The appearance of the light as is passes through space can can a strong phenomenological effect. The image above shows the Pantheon, a classical Roman structure, that was designed with a small oculus at the top create this powerful and awe inspiring effect.
+
+We believe that the ability to render this effect in a realistic and compelling way requires a carefully crafted 3d model and the ability to render the attenuation and scattering of light as is passes through a medium. For exploring this effect in an interior context, a 3d model of an interior scene with small openings to an external bright light source provides an ideal setup. However the majority of the problem lies in the ability to render the light as is passes through a medium. Volumetric Rendering is a very computationally expensive task and can take a lot of time for the image to converge.
+
+Our proposal for this project is to implement volumetric rendering on the GPU. With the parallel processing power of modern Nvidia GPUs and the CUDA/Optix API, we believe that we can achieve much faster rendering times for volumetric rendering compared with conventional CPU rendering. This project presents several challenges as an extension of the pathtracer (project 3) for the course. First, we must be able to translate our knowledge of the pathtracing algorithms into a program that can do the bulk of the work on the GPU. Second, we must be able to implement the algorithms for volumetric rendering and the attenuation and scattering of light in a medium within this new context. To simplify this problem to focus on volumetric rendering on the GPU, our goal will not be to focus on implementing a suite of BSDFs for the geometry in the scene or advanced camera lens models. As such, by considering the god ray in a scene similar to image of the pantheon above, we feel that we can generate compelling and interesting renderings quickly.
+## Goals
+
+#### Goal 1: GPU Pathtracer
+Our first primary goal is to create a program capable of raytracing volumetric effects on the GPU. Since both of us have Nvidia GPUs, this program will be developed with the Nvidia Optix API which makes use of the CUDA parallel programming platform. Since a major part of our proposal is for fast rendering, the raytraced view of the scene will best be displayed through the program window. There are several requirements our program outlined below:
+- An OpenGL GUI for viewing the rendering
+- A progressive rendering mode where the program will gradually update the entire image, refining it from low quality to final result rather than focusing on one small part of the image at a time (as in project 3). Progressive rendering will allows us to debug the program mush quicker.
+- Allow for the importing of OBJ files created in an external modeling application, initial geometry in the models will be simple and become more complex as time permits
+- A sunlight (directional parallel light rays)
+- A basic UI control for changing the sampling rate, medium parameters, solar position (altitude and azimuth angles); perspective camera orbit and pan will be important for interacting with the scene
+- A single (or limited set of) BSDF(s) for surface materials for the rendering the surface geometry
+- Volumetric Rendering (see )
+
+#### Goal 2: Volumetric Rendering
+Our second primary goal for the project is to implement volumetric rendering. In order to render god rays in our scene, we will initially consider Homogeneous mediums. A large component of this goal will require us to research methods for implementing this technique but can initially be broken down into an attenuation component and a scattering component. It will be imperative that we consider the implementation of this goal with respect to GPU and therefore many unforseen challenges may arise.
+
+#### Goal 3: Performance Analysis
+The primary motivation for looking into raytracing options on the GPU is for performance. By performance, we mean the time it takes to raytrace a scene including participating mediums with low noise. To demo our program, we would like to show the render operating in an interactive manner; for example: by updating the camera, changing the sun position or medium parameters. Given that we will be using a progressive rendering mode, we expect there to be potentially more than 1000 passes on even a simple model before the image begins to converge. For a more analytical analysis, we would like to be able to control and compare the the number of passes (sampling rate) and the rendering times. While we are not developing an identical program on the CPU, many commercially available CPU rendering packages have volumetric rendering included and so comparing rendering times (controlled for sampling rate) across the CPU and GPU will be important, albeit approximate.
+
+#### Stretch Goals
+Our proposal thus far has considered the rendering of god rays within the context of interior scenes. However, it would be interesting to consider the capacity for our program to render exterior scenes with clouds. This stretch goal would require us to implement two more features: HDRi lighting to represent the skylight, and combinations of homogeneous and non-homogeneous mediums in the scene. Non-homogeneous mediums would be necessary for clouds. The following image shows a scene that may be attempted with such additions.
+
+
+
+
+## Schedule
+### Week 1: Research, Environment, Resources
+
+### Week 2: Optix Pathtracer
+
+### Week 3: Volumetric Attenuation
+
+### Week 4: Volumetric Scattering
+
+## Resources
+### GPU Rendering
+- Nvidia Optix Developer Resources -
+
+
+### Volumetric Rendering
+- Physically Based Rendering, From Theory to Implementation -
+
