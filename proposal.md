@@ -21,7 +21,7 @@ Our first primary goal is to create a program capable of raytracing volumetric e
 - A sunlight (directional parallel light rays)
 - A basic UI control for changing the sampling rate, medium parameters, solar position (altitude and azimuth angles); perspective camera orbit and pan will be important for interacting with the scene
 - A single (or limited set of) BSDF(s) for surface materials for the rendering the surface geometry
-- Volumetric Rendering (see )
+- Volumetric Rendering (see goal 2)
 
 #### Goal 2: Volumetric Rendering
 Our second primary goal for the project is to implement volumetric rendering. In order to render god rays in our scene, we will initially consider Homogeneous mediums. A large component of this goal will require us to research methods for implementing this technique but can initially be broken down into an attenuation component and a scattering component. It will be imperative that we consider the implementation of this goal with respect to GPU and therefore many unforseen challenges may arise. The following image shows volumetric rendering of a simple model with a single light source.
@@ -39,12 +39,16 @@ Our proposal thus far has considered the rendering of god rays within the contex
 
 ## Schedule
 ### Week 1: Research, Environment, Resources
+For the first week we will be setting up our build environment, collecting neccesarry research for implementing volumetric rendering, developing a set of model files for use in the program, and familurizing ourselves with the Optix SDK.
 
 ### Week 2: Optix Pathtracer
+For week two, our plan is to implement the Optix Pathtracer program with the requirements set in goal 1 with the exemption for volumetric rendering.
 
 ### Week 3: Volumetric Attenuation
+For week three we will be implementing the first portion of the volumetric rendering problem, attenuation. We will start testing the performance of our program during this week.
 
 ### Week 4: Volumetric Scattering
+For week four we will be implementing the second portion of the volumetric rendering problem, scattering. We will continue testing performance this week, and finish our write up and presentation.
 
 ## Resources
 ### GPU Rendering
