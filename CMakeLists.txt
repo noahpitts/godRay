@@ -27,7 +27,7 @@
 #
 
 # See top level CMakeLists.txt file for documentation of OPTIX_add_sample_executable.
-OPTIX_add_sample_executable(optixHello
-  optixHello.cpp
-  draw_color.cu
+OPTIX_add_sample_executable(godRay
+  src/godRayMain.cpp
+  cuda/draw_color.cu
   )
