@@ -45,6 +45,7 @@ void printUsageAndExit( const char* argv0 );
 int main(int argc, char* argv[])
 {
     RTcontext context = 0;
+	printf("Sup dawg");
 
     try { 
 
