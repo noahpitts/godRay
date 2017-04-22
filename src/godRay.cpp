@@ -40,7 +40,8 @@ const char *const SAMPLE_NAME = "godRay";
 const unsigned int WIDTH = 768u;
 const unsigned int HEIGHT = 576u;
 
-
+// FOR PARAMS
+const float DEFAULT_SIGMA_A = 0.05f; // Attenuation parameter
 
 // SUN/SKY
 const float PHYSICAL_SUN_RADIUS = 0.004675f; // from Wikipedia
@@ -102,6 +103,11 @@ void createContext(bool use_pbo)
     context["cutoff_color"]->setFloat(0.2f, 0.2f, 0.2f);
     context["frame"]->setUint(0u);
     context["scene_epsilon"]->setFloat(1.e-3f);
+    context->setPrintEnabled(true);
+    context->setPrintBufferSize(1024);
+
+    // Global Fog Parameters
+    context["sigma_a"]->setFloat(DEFAULT_SIGMA_A);
 
     Buffer buffer = sutil::createOutputBuffer(context, RT_FORMAT_UNSIGNED_BYTE4, WIDTH, HEIGHT, use_pbo);
     context["output_buffer"]->set(buffer);
@@ -425,6 +431,8 @@ void glfwRun(GLFWwindow *window, sutil::Camera &camera, sutil::PreethamSunSky &s
     float sun_radius = DEFAULT_SUN_RADIUS;
     float overcast = DEFAULT_OVERCAST;
 
+    float sigma_a = DEFAULT_SIGMA_A;
+
     // Expose user data for access in GLFW callback functions when the window is resized, etc.
     // This avoids having to make it global.
     CallbackData cb = {camera, accumulation_frame};
@@ -493,6 +501,12 @@ void glfwRun(GLFWwindow *window, sutil::Camera &camera, sutil::PreethamSunSky &s
             {
                 sky.setOvercast(overcast);
                 sky.setVariables(context);
+                sun_changed = true;
+            }
+            if (ImGui::SliderFloat("attenuation", &sigma_a, 0.0f, 1.0f))
+            {
+                // TODO
+                context["sigma_a"]->setFloat(sigma_a);
                 sun_changed = true;
             }
             if (sun_changed)
