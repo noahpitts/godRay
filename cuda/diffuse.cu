@@ -46,6 +46,7 @@ rtDeclareVariable(PerRayData_shadow,   prd_shadow, rtPayload, );
 
 rtDeclareVariable( float3, Kd, , );
 rtDeclareVariable(rtObject,      top_object, , );
+rtDeclareVariable(float, sigma_a, , );
 
 rtBuffer<DirectionalLight> light_buffer;
 
@@ -73,6 +74,11 @@ RT_PROGRAM void closest_hit_radiance()
     const optix::Onb onb( ffnormal );
     onb.inverse_transform( w_in );
     const float3 fhp = rtTransformPoint( RT_OBJECT_TO_WORLD, front_hit_point );
+    
+    //float sigma_a = 10.0f; //0.05f;
+    float distance = optix::length(front_hit_point - prd_radiance.origin);
+    float transmittance = exp(-sigma_a * distance);
+    //rtPrintf("dist: %f\n", distance);
 
     prd_radiance.origin = front_hit_point;
     prd_radiance.direction = w_in;
@@ -98,7 +104,8 @@ RT_PROGRAM void closest_hit_radiance()
         rtTrace(top_object, shadow_ray, shadow_prd);
 
         const float solid_angle = light.radius*light.radius*M_PIf;
-        prd_radiance.radiance += NdotL * light.color * solid_angle * shadow_prd.attenuation;
+        
+        prd_radiance.radiance += NdotL * light.color * solid_angle * shadow_prd.attenuation * transmittance;
     }
     
 
