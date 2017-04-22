@@ -26,8 +26,28 @@
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #
 
+include_directories(${SAMPLES_INCLUDE_DIR})
+
 # See top level CMakeLists.txt file for documentation of OPTIX_add_sample_executable.
-OPTIX_add_sample_executable(godRay
-  src/godRayMain.cpp
-  cuda/draw_color.cu
-  )
+OPTIX_add_sample_executable( godRay
+    src/godRay.cpp
+    src/read_vox.cpp
+    src/read_vox.h
+
+    cuda/prd.h
+    cuda/boxes.cu
+    cuda/path_trace_camera.cu
+    cuda/sunsky.cu
+    cuda/triangle_mesh.cu
+    cuda/medium.cu
+    cuda/diffuse.cu
+    cuda/parallelogram_iterative.cu
+
+
+    # common headers
+    ${SAMPLES_INCLUDE_DIR}/commonStructs.h
+    ${SAMPLES_INCLUDE_DIR}/helpers.h
+    ${SAMPLES_INCLUDE_DIR}/intersection_refinement.h
+    ${SAMPLES_INCLUDE_DIR}/random.h
+    )
+
