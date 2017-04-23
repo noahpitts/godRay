@@ -35,6 +35,8 @@ rtDeclareVariable(float,    overcast, , );
 rtDeclareVariable(optix::float3,   sun_direction, , );
 rtDeclareVariable(optix::float3,   sun_color, , );
 rtDeclareVariable(optix::float3,   sky_up, , );
+rtDeclareVariable(float, atmosphere, , );
+rtDeclareVariable(float, sigma_a, , );
 
 rtDeclareVariable(optix::float3, inv_divisor_Yxy, ,);
 rtDeclareVariable(optix::float3, c0, ,);
@@ -96,5 +98,8 @@ RT_PROGRAM void miss()
     const bool show_sun = (prd_radiance.depth == 0);
     prd_radiance.radiance = ray.direction.y <= 0.0f ? make_float3( 0.0f ) : querySkyModel( show_sun, ray.direction );
     prd_radiance.done = true;
+
+    // attenuation from the atmosphere
+    prd_radiance.attenuation *= exp(-sigma_a * atmosphere);
 }
 

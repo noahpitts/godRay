@@ -42,6 +42,7 @@ const unsigned int HEIGHT = 576u;
 
 // FOR PARAMS
 const float DEFAULT_SIGMA_A = 0.05f; // Attenuation parameter
+const float DEFAULT_ATMOSPHERE = 50.0f; // Atmosphere parameter
 
 // SUN/SKY
 const float PHYSICAL_SUN_RADIUS = 0.004675f; // from Wikipedia
@@ -108,6 +109,7 @@ void createContext(bool use_pbo)
 
     // Global Fog Parameters
     context["sigma_a"]->setFloat(DEFAULT_SIGMA_A);
+    context["atmosphere"]->setFloat(DEFAULT_ATMOSPHERE);
 
     Buffer buffer = sutil::createOutputBuffer(context, RT_FORMAT_UNSIGNED_BYTE4, WIDTH, HEIGHT, use_pbo);
     context["output_buffer"]->set(buffer);
@@ -432,6 +434,7 @@ void glfwRun(GLFWwindow *window, sutil::Camera &camera, sutil::PreethamSunSky &s
     float overcast = DEFAULT_OVERCAST;
 
     float sigma_a = DEFAULT_SIGMA_A;
+    float atmos = DEFAULT_ATMOSPHERE;
 
     // Expose user data for access in GLFW callback functions when the window is resized, etc.
     // This avoids having to make it global.
@@ -503,10 +506,16 @@ void glfwRun(GLFWwindow *window, sutil::Camera &camera, sutil::PreethamSunSky &s
                 sky.setVariables(context);
                 sun_changed = true;
             }
-            if (ImGui::SliderFloat("attenuation", &sigma_a, 0.0f, 1.0f))
+            if (ImGui::SliderFloat("attenuation", &sigma_a, 0.0f, 30.0f))
             {
                 // TODO
                 context["sigma_a"]->setFloat(sigma_a);
+                sun_changed = true;
+            }
+            if (ImGui::SliderFloat("atmosphere", &atmos, 0.0f, 100.0f))
+            {
+                // TODO
+                context["atmosphere"]->setFloat(atmos);
                 sun_changed = true;
             }
             if (sun_changed)
