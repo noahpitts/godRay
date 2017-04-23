@@ -47,6 +47,7 @@ rtDeclareVariable(PerRayData_shadow,   prd_shadow, rtPayload, );
 rtDeclareVariable( float3, Kd, , );
 rtDeclareVariable(rtObject,      top_object, , );
 rtDeclareVariable(float, sigma_a, , );
+rtDeclareVariable(float, atmosphere, , );
 
 rtBuffer<DirectionalLight> light_buffer;
 
@@ -102,8 +103,9 @@ RT_PROGRAM void closest_hit_radiance()
         rtTrace(top_object, shadow_ray, shadow_prd);
 
         const float solid_angle = light.radius*light.radius*M_PIf;
-        
-        prd_radiance.radiance += NdotL * light.color * solid_angle * shadow_prd.attenuation;
+       
+        float3 contribution = NdotL * light.color * solid_angle * shadow_prd.attenuation;
+        prd_radiance.radiance += contribution * exp(-sigma_a * atmosphere);
     }
     
 

@@ -506,7 +506,7 @@ void glfwRun(GLFWwindow *window, sutil::Camera &camera, sutil::PreethamSunSky &s
                 sky.setVariables(context);
                 sun_changed = true;
             }
-            if (ImGui::SliderFloat("attenuation", &sigma_a, 0.0f, 30.0f))
+            if (ImGui::SliderFloat("attenuation", &sigma_a, 0.0f, 1.0f))
             {
                 // TODO
                 context["sigma_a"]->setFloat(sigma_a);
