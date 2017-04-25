@@ -1,0 +1,925 @@
+<!doctype html>
+<html>
+
+<head>
+    <meta charset='utf-8'>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/github-markdown-css/2.4.1/github-markdown.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/9.9.0/styles/default.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.6.0/katex.min.css">
+    <link rel="stylesheet" href="https://gitcdn.xyz/repo/goessner/mdmath/master/css/mdmath.css">
+    <meta http-equiv="content-type" content="text/html; charset=utf-8" />
+    <link href="https://fonts.googleapis.com/css?family=Open+Sans|Source+Sans+Pro" rel="stylesheet">
+
+    <style>
+        body {
+            padding: 100px;
+            width: 960px;
+            margin: auto;
+            text-align: left;
+            font-weight: 300;
+            font-family: 'Open Sans', sans-serif;
+            color: #121212;
+        }
+        
+        h1,
+        h2,
+        h3,
+        h4 {
+            font-family: 'Source Sans Pro', sans-serif;
+        }
+    </style>
+</head>
+
+<body class="markdown-body">
+    <h1>godRay</h1>
+    <h2>GPU Acceleration of Volumetric Rendering | Isak Karlsson | Noah Pitts</h2>
+    <h2>Summary</h2>
+    <p>For our First Milestone we were primarily focused on transitioning over to the Nvidia OptiX ray tracing platform. This
+        required setting up our environment in Windows with Visual Studio and leaning the necessary CUDA and OptiX programs.
+        We set up a basic iterative pathtracing program with which we can build the volume rendering algorithms into.</p>
+    <h2>Milestones</h2>
+    <h3>GPU Pathtracer Skeleton in OptiX</h3>
+    <p>The pathtraching program in Optix was primarily built from referance sample programs. No single sample program contained
+        the full set of features neccessary to build off of. However between a set 4 or 5 key samples we were able to piece
+        together the neccessary functions to have a program that is similar in capabilities to project 3 in the course.</p>
+    <h3>Emission/Absorbtion Model</h3>
+    <p>The first Volumetric Rendering model that we implemented is the emission absorption model for homogeneous mediums which
+        is a partial solution to the full volume rendering equation.</p>
+    <section>
+        <eqn><span class="katex-display"><span class="katex"><span class="katex-mathml"><math><semantics><mrow><mi>L</mi><mo>(</mo><mi>x</mi><mo separator="true">,</mo><mi>ω</mi><mo>)</mo><mo>=</mo><msub><mi>T</mi><mi>r</mi></msub><mo>(</mo><msub><mi>x</mi><mn>0</mn></msub><mo>→</mo><mi>x</mi><mo>)</mo><msub><mi>L</mi><mn>0</mn></msub><mo>(</mo><msub><mi>x</mi><mn>0</mn></msub><mo separator="true">,</mo><mo>−</mo><mi>ω</mi><mo>)</mo><mo>+</mo><msubsup><mo>∫</mo><mrow><mn>0</mn></mrow><mrow><mi>t</mi></mrow></msubsup><msub><mi>T</mi><mi>r</mi></msub><mo>(</mo><msup><mi>x</mi><mrow><mi mathvariant="normal">′</mi></mrow></msup><mo>→</mo><mi>x</mi><mo>)</mo><msub><mi>L</mi><mi>e</mi></msub><mo>(</mo><msub><mi>x</mi><mn>0</mn></msub><mo separator="true">,</mo><mo>−</mo><mi>ω</mi><mo>)</mo><mi>d</mi><msup><mi>t</mi><mrow><mi mathvariant="normal">′</mi></mrow></msup></mrow><annotation encoding="application/x-tex">L(x,\\omega) = T\_r(x\_0\\rightarrow x)L\_0(x\_0, -\\omega) + \\int\_{0}^{t}T\_r(x&#x27;\\rightarrow x)L\_e(x\_0, -\\omega) dt&#x27;</annotation></semantics></math></span>
+            <span class="katex-html" aria-hidden="true"><span class="strut" style="height:1.404556em;"></span><span class="strut bottom"
+                style="height:2.3168059999999997em;vertical-align:-0.91225em;"></span>
+            <span class="base displaystyle textstyle uncramped"><span class="mord mathit">L</span><span class="mopen">(</span>
+            <span class="mord mathit">x</span><span class="mpunct">,</span>
+            <span class="mord mathit" style="margin-right:0.03588em;">ω</span><span class="mclose">)</span><span class="mrel">=</span>
+            <span class="mord"><span class="mord mathit" style="margin-right:0.13889em;">T</span>
+            <span class="vlist"><span style="top:0.15em;margin-right:0.05em;margin-left:-0.13889em;"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>
+            <span class="reset-textstyle scriptstyle cramped"><span class="mord mathit" style="margin-right:0.02778em;">r</span></span>
+            </span><span class="baseline-fix"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>​</span>
+            </span>
+            </span><span class="mopen">(</span><span class="mord"><span class="mord mathit">x</span><span class="vlist"><span style="top:0.15em;margin-right:0.05em;margin-left:0em;"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>
+            <span class="reset-textstyle scriptstyle cramped"><span class="mord mathrm">0</span></span>
+            </span><span class="baseline-fix"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>​</span>
+            </span>
+            </span><span class="mrel">→</span><span class="mord mathit">x</span><span class="mclose">)</span>
+            <span class="mord"><span class="mord mathit">L</span><span class="vlist"><span style="top:0.15em;margin-right:0.05em;margin-left:0em;"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>
+            <span class="reset-textstyle scriptstyle cramped"><span class="mord mathrm">0</span></span>
+            </span><span class="baseline-fix"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>​</span>
+            </span>
+            </span><span class="mopen">(</span><span class="mord"><span class="mord mathit">x</span>
+            <span class="vlist"><span style="top:0.15em;margin-right:0.05em;margin-left:0em;"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>
+            <span class="reset-textstyle scriptstyle cramped"><span class="mord mathrm">0</span></span>
+            </span><span class="baseline-fix"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>​</span>
+            </span>
+            </span><span class="mpunct">,</span><span class="mord">−</span><span class="mord mathit" style="margin-right:0.03588em;">ω</span>
+            <span class="mclose">)</span>
+            <span class="mbin">+</span><span class="mop"><span class="op-symbol large-op mop" style="margin-right:0.44445em;top:-0.0011249999999999316em;">∫</span>
+            <span class="vlist"><span style="top:0.91225em;margin-left:-0.44445em;margin-right:0.05em;"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>
+            <span class="reset-textstyle scriptstyle cramped"><span class="mord scriptstyle cramped"><span class="mord mathrm">0</span></span>
+            </span>
+            </span><span style="top:-0.9739999999999999em;margin-right:0.05em;"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>
+            <span class="reset-textstyle scriptstyle uncramped"><span class="mord scriptstyle uncramped"><span class="mord mathit">t</span></span>
+            </span>
+            </span><span class="baseline-fix"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>​</span>
+            </span>
+            </span><span class="mord"><span class="mord mathit" style="margin-right:0.13889em;">T</span>
+            <span class="vlist"><span style="top:0.15em;margin-right:0.05em;margin-left:-0.13889em;"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>
+            <span class="reset-textstyle scriptstyle cramped"><span class="mord mathit" style="margin-right:0.02778em;">r</span></span>
+            </span><span class="baseline-fix"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>​</span>
+            </span>
+            </span><span class="mopen">(</span><span class="mord"><span class="mord mathit">x</span>
+            <span class="vlist"><span style="top:-0.413em;margin-right:0.05em;"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>
+            <span class="reset-textstyle scriptstyle uncramped"><span class="mord scriptstyle uncramped"><span class="mord mathrm">′</span></span>
+            </span>
+            </span><span class="baseline-fix"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>​</span>
+            </span>
+            </span><span class="mrel">→</span><span class="mord mathit">x</span>
+            <span class="mclose">)</span><span class="mord"><span class="mord mathit">L</span>
+            <span class="vlist"><span style="top:0.15em;margin-right:0.05em;margin-left:0em;"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>
+            <span class="reset-textstyle scriptstyle cramped"><span class="mord mathit">e</span></span>
+            </span><span class="baseline-fix"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>​</span>
+            </span>
+            </span><span class="mopen">(</span>
+            <span class="mord"><span class="mord mathit">x</span>
+            <span class="vlist"><span style="top:0.15em;margin-right:0.05em;margin-left:0em;"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>
+            <span class="reset-textstyle scriptstyle cramped"><span class="mord mathrm">0</span></span>
+            </span><span class="baseline-fix"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>​</span>
+            </span>
+            </span><span class="mpunct">,</span>
+            <span class="mord">−</span>
+            <span class="mord mathit" style="margin-right:0.03588em;">ω</span>
+            <span class="mclose">)</span>
+            <span class="mord mathit">d</span>
+            <span class="mord">
+                                                                                                                                <span
+                                                                                                                                    class="mord mathit">t</span>
+            <span class="vlist">
+                                                                                                                                        <span
+                                                                                                                                            style="top:-0.413em;margin-right:0.05em;">
+                                                                                                                                            <span
+                                                                                                                                                class="fontsize-ensurer reset-size5 size5">
+                                                                                                                                                <span
+                                                                                                                                                    style="font-size:0em;">​</span>
+            </span>
+            <span class="reset-textstyle scriptstyle uncramped">
+                                                                                                                                                        <span
+                                                                                                                                                            class="mord scriptstyle uncramped">
+                                                                                                                                                            <span
+                                                                                                                                                                class="mord mathrm">′</span>
+            </span>
+            </span>
+            </span>
+            <span class="baseline-fix">
+                                                                                                                                                                    <span
+                                                                                                                                                                        class="fontsize-ensurer reset-size5 size5">
+                                                                                                                                                                        <span
+                                                                                                                                                                            style="font-size:0em;">​</span>
+            </span>​</span>
+            </span>
+            </span>
+            </span>
+            </span>
+            </span>
+            </span>
+        </eqn>
+    </section>
+    <p>where the transmittance is simplified using beers law</p>
+    <section>
+        <eqn><span class="katex-display"><span class="katex"><span class="katex-mathml"><math><semantics><mrow><msub><mi>T</mi><mi>r</mi></msub><mo>(</mo><msub><mi>x</mi><mn>0</mn></msub><mo>→</mo><msub><mi>x</mi><mn>1</mn></msub><mo>)</mo><mo>=</mo><msup><mi>e</mi><mrow><mo>−</mo><msub><mi>σ</mi><mi>t</mi></msub><mi>d</mi></mrow></msup></mrow><annotation encoding="application/x-tex">T\_r(x\_0\\rightarrow x\_1) = e^{-\\sigma\_t d}</annotation></semantics></math></span>
+            <span class="katex-html" aria-hidden="true"><span class="strut" style="height:0.899108em;"></span><span class="strut bottom"
+                style="height:1.149108em;vertical-align:-0.25em;"></span>
+            <span class="base displaystyle textstyle uncramped"><span class="mord"><span class="mord mathit" style="margin-right:0.13889em;">T</span>
+            <span class="vlist"><span style="top:0.15em;margin-right:0.05em;margin-left:-0.13889em;"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>
+            <span class="reset-textstyle scriptstyle cramped"><span class="mord mathit" style="margin-right:0.02778em;">r</span></span>
+            </span><span class="baseline-fix"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>​</span>
+            </span>
+            </span><span class="mopen">(</span><span class="mord"><span class="mord mathit">x</span><span class="vlist"><span style="top:0.15em;margin-right:0.05em;margin-left:0em;"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>
+            <span class="reset-textstyle scriptstyle cramped"><span class="mord mathrm">0</span></span>
+            </span><span class="baseline-fix"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>​</span>
+            </span>
+            </span><span class="mrel">→</span><span class="mord"><span class="mord mathit">x</span><span class="vlist"><span style="top:0.15em;margin-right:0.05em;margin-left:0em;"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>
+            <span class="reset-textstyle scriptstyle cramped"><span class="mord mathrm">1</span></span>
+            </span><span class="baseline-fix"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>​</span>
+            </span>
+            </span><span class="mclose">)</span><span class="mrel">=</span><span class="mord"><span class="mord mathit">e</span>
+            <span class="vlist"><span style="top:-0.413em;margin-right:0.05em;"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>
+            <span class="reset-textstyle scriptstyle uncramped"><span class="mord scriptstyle uncramped"><span class="mord">−</span>
+            <span class="mord"><span class="mord mathit" style="margin-right:0.03588em;">σ</span>
+            <span class="vlist"><span style="top:0.15em;margin-right:0.07142857142857144em;margin-left:-0.03588em;"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>
+            <span class="reset-scriptstyle scriptscriptstyle cramped"><span class="mord mathit">t</span></span>
+            </span><span class="baseline-fix"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>​</span>
+            </span>
+            </span><span class="mord mathit">d</span></span>
+            </span>
+            </span><span class="baseline-fix"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>​</span>
+            </span>
+            </span>
+            </span>
+            </span>
+            </span>
+            </span>
+        </eqn>
+    </section>
+    <h3>Single Scattering Model</h3>
+    <p>The single scattering model then adapts the emission/absorbtion model by including an in-scattering contribution making
+        the volume rendering equation as follows:</p>
+    <section>
+        <eqn><span class="katex-display"><span class="katex"><span class="katex-mathml"><math><semantics><mrow><mi>L</mi><mo>(</mo><mi>x</mi><mo separator="true">,</mo><mi>ω</mi><mo>)</mo><mo>=</mo><msub><mi>T</mi><mi>r</mi></msub><mo>(</mo><msub><mi>x</mi><mn>0</mn></msub><mo>→</mo><mi>x</mi><mo>)</mo><msub><mi>L</mi><mn>0</mn></msub><mo>(</mo><msub><mi>x</mi><mn>0</mn></msub><mo separator="true">,</mo><mo>−</mo><mi>ω</mi><mo>)</mo><mo>+</mo><msubsup><mo>∫</mo><mrow><mn>0</mn></mrow><mrow><mi>t</mi></mrow></msubsup><msub><mi>T</mi><mi>r</mi></msub><mo>(</mo><msup><mi>x</mi><mrow><mi mathvariant="normal">′</mi></mrow></msup><mo>→</mo><mi>x</mi><mo>)</mo><mrow><mo fence="true">[</mo><msub><mi>L</mi><mi>e</mi></msub><mo>(</mo><msub><mi>x</mi><mn>0</mn></msub><mo separator="true">,</mo><mo>−</mo><mi>ω</mi><mo>)</mo><mo>+</mo><msub><mi>σ</mi><mi>s</mi></msub><mo>(</mo><mi>x</mi><mo separator="true">,</mo><mi>ω</mi><mo>)</mo><msub><mo>∫</mo><mrow><msub><mi>s</mi><mn>2</mn></msub></mrow></msub><msub><mi>ρ</mi><mi>p</mi></msub><mo>(</mo><mi>x</mi><mo separator="true">,</mo><mi>ω</mi><mo separator="true">,</mo><msup><mi>ω</mi><mrow><mi mathvariant="normal">′</mi></mrow></msup><mo>)</mo><msub><mi>L</mi><mi>d</mi></msub><mo>(</mo><mi>x</mi><mo separator="true">,</mo><msup><mi>ω</mi><mrow><mi mathvariant="normal">′</mi></mrow></msup><mo>)</mo><mi>d</mi><msup><mi>ω</mi><mrow><mi mathvariant="normal">′</mi></mrow></msup><mo fence="true">]</mo></mrow><mi>d</mi><msup><mi>t</mi><mrow><mi mathvariant="normal">′</mi></mrow></msup></mrow><annotation encoding="application/x-tex">L(x,\\omega) = T\_r(x\_0\\rightarrow x)L\_0(x\_0, -\\omega) + \\int\_{0}^{t}T\_r(x&#x27;\\rightarrow x)\\left[L\_e(x\_0, -\\omega) + \\sigma\_s(x, \\omega)\\int\_{s\_2}\\rho\_p(x, \\omega, \\omega&#x27;)L\_d(x, \\omega&#x27;)d\\omega&#x27; \\right] dt&#x27;</annotation></semantics></math></span>
+            <span class="katex-html" aria-hidden="true"><span class="strut" style="height:1.45em;"></span><span class="strut bottom"
+                style="height:2.46725em;vertical-align:-1.01725em;"></span>
+            <span class="base displaystyle textstyle uncramped"><span class="mord mathit">L</span><span class="mopen">(</span>
+            <span class="mord mathit">x</span><span class="mpunct">,</span>
+            <span class="mord mathit" style="margin-right:0.03588em;">ω</span><span class="mclose">)</span><span class="mrel">=</span>
+            <span class="mord"><span class="mord mathit" style="margin-right:0.13889em;">T</span>
+            <span class="vlist"><span style="top:0.15em;margin-right:0.05em;margin-left:-0.13889em;"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>
+            <span class="reset-textstyle scriptstyle cramped"><span class="mord mathit" style="margin-right:0.02778em;">r</span></span>
+            </span><span class="baseline-fix"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>​</span>
+            </span>
+            </span><span class="mopen">(</span><span class="mord"><span class="mord mathit">x</span><span class="vlist"><span style="top:0.15em;margin-right:0.05em;margin-left:0em;"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>
+            <span class="reset-textstyle scriptstyle cramped"><span class="mord mathrm">0</span></span>
+            </span><span class="baseline-fix"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>​</span>
+            </span>
+            </span><span class="mrel">→</span><span class="mord mathit">x</span><span class="mclose">)</span>
+            <span class="mord"><span class="mord mathit">L</span><span class="vlist"><span style="top:0.15em;margin-right:0.05em;margin-left:0em;"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>
+            <span class="reset-textstyle scriptstyle cramped"><span class="mord mathrm">0</span></span>
+            </span><span class="baseline-fix"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>​</span>
+            </span>
+            </span><span class="mopen">(</span><span class="mord"><span class="mord mathit">x</span>
+            <span class="vlist"><span style="top:0.15em;margin-right:0.05em;margin-left:0em;"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>
+            <span class="reset-textstyle scriptstyle cramped"><span class="mord mathrm">0</span></span>
+            </span><span class="baseline-fix"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>​</span>
+            </span>
+            </span><span class="mpunct">,</span><span class="mord">−</span><span class="mord mathit" style="margin-right:0.03588em;">ω</span>
+            <span class="mclose">)</span>
+            <span class="mbin">+</span><span class="mop"><span class="op-symbol large-op mop" style="margin-right:0.44445em;top:-0.0011249999999999316em;">∫</span>
+            <span class="vlist"><span style="top:0.91225em;margin-left:-0.44445em;margin-right:0.05em;"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>
+            <span class="reset-textstyle scriptstyle cramped"><span class="mord scriptstyle cramped"><span class="mord mathrm">0</span></span>
+            </span>
+            </span><span style="top:-0.9739999999999999em;margin-right:0.05em;"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>
+            <span class="reset-textstyle scriptstyle uncramped"><span class="mord scriptstyle uncramped"><span class="mord mathit">t</span></span>
+            </span>
+            </span><span class="baseline-fix"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>​</span>
+            </span>
+            </span><span class="mord"><span class="mord mathit" style="margin-right:0.13889em;">T</span>
+            <span class="vlist"><span style="top:0.15em;margin-right:0.05em;margin-left:-0.13889em;"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>
+            <span class="reset-textstyle scriptstyle cramped"><span class="mord mathit" style="margin-right:0.02778em;">r</span></span>
+            </span><span class="baseline-fix"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>​</span>
+            </span>
+            </span><span class="mopen">(</span><span class="mord"><span class="mord mathit">x</span>
+            <span class="vlist"><span style="top:-0.413em;margin-right:0.05em;"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>
+            <span class="reset-textstyle scriptstyle uncramped"><span class="mord scriptstyle uncramped"><span class="mord mathrm">′</span></span>
+            </span>
+            </span><span class="baseline-fix"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>​</span>
+            </span>
+            </span><span class="mrel">→</span><span class="mord mathit">x</span>
+            <span class="mclose">)</span><span class="minner displaystyle textstyle uncramped"><span class="style-wrap reset-textstyle textstyle uncramped" style="top:0em;"><span class="delimsizing size3">[</span></span>
+            <span class="mord"><span class="mord mathit">L</span>
+            <span class="vlist"><span style="top:0.15em;margin-right:0.05em;margin-left:0em;"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>
+            <span class="reset-textstyle scriptstyle cramped"><span class="mord mathit">e</span></span>
+            </span><span class="baseline-fix"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>​</span>
+            </span>
+            </span><span class="mopen">(</span>
+            <span class="mord"><span class="mord mathit">x</span>
+            <span class="vlist"><span style="top:0.15em;margin-right:0.05em;margin-left:0em;"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>
+            <span class="reset-textstyle scriptstyle cramped"><span class="mord mathrm">0</span></span>
+            </span><span class="baseline-fix"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>​</span>
+            </span>
+            </span><span class="mpunct">,</span>
+            <span class="mord">−</span>
+            <span class="mord mathit" style="margin-right:0.03588em;">ω</span>
+            <span class="mclose">)</span>
+            <span class="mbin">+</span>
+            <span class="mord">
+                                                                                                                                    <span
+                                                                                                                                        class="mord mathit"
+                                                                                                                                        style="margin-right:0.03588em;">σ</span>
+            <span class="vlist">
+                                                                                                                                            <span
+                                                                                                                                                style="top:0.15em;margin-right:0.05em;margin-left:-0.03588em;">
+                                                                                                                                                <span
+                                                                                                                                                    class="fontsize-ensurer reset-size5 size5">
+                                                                                                                                                    <span
+                                                                                                                                                        style="font-size:0em;">​</span>
+            </span>
+            <span class="reset-textstyle scriptstyle cramped">
+                                                                                                                                                            <span
+                                                                                                                                                                class="mord mathit">s</span>
+            </span>
+            </span>
+            <span class="baseline-fix">
+                                                                                                                                                                    <span
+                                                                                                                                                                        class="fontsize-ensurer reset-size5 size5">
+                                                                                                                                                                        <span
+                                                                                                                                                                            style="font-size:0em;">​</span>
+            </span>​</span>
+            </span>
+            </span>
+            <span class="mopen">(</span>
+            <span class="mord mathit">x</span>
+            <span class="mpunct">,</span>
+            <span class="mord mathit" style="margin-right:0.03588em;">ω</span>
+            <span class="mclose">)</span>
+            <span class="mop">
+                                                                                                                                                                                                    <span
+                                                                                                                                                                                                        class="op-symbol large-op mop"
+                                                                                                                                                                                                        style="margin-right:0.44445em;top:-0.0011249999999999316em;">∫</span>
+            <span class="vlist">
+                                                                                                                                                                                                            <span
+                                                                                                                                                                                                                style="top:0.91225em;margin-right:0.05em;margin-left:-0.44445em;">
+                                                                                                                                                                                                                <span
+                                                                                                                                                                                                                    class="fontsize-ensurer reset-size5 size5">
+                                                                                                                                                                                                                    <span
+                                                                                                                                                                                                                        style="font-size:0em;">​</span>
+            </span>
+            <span class="reset-textstyle scriptstyle cramped">
+                                                                                                                                                                                                                            <span
+                                                                                                                                                                                                                                class="mord scriptstyle cramped">
+                                                                                                                                                                                                                                <span
+                                                                                                                                                                                                                                    class="mord">
+                                                                                                                                                                                                                                    <span
+                                                                                                                                                                                                                                        class="mord mathit">s</span>
+            <span class="vlist">
+                                                                                                                                                                                                                                            <span
+                                                                                                                                                                                                                                                style="top:0.15em;margin-right:0.07142857142857144em;margin-left:0em;">
+                                                                                                                                                                                                                                                <span
+                                                                                                                                                                                                                                                    class="fontsize-ensurer reset-size5 size5">
+                                                                                                                                                                                                                                                    <span
+                                                                                                                                                                                                                                                        style="font-size:0em;">​</span>
+            </span>
+            <span class="reset-scriptstyle scriptscriptstyle cramped">
+                                                                                                                                                                                                                                                            <span
+                                                                                                                                                                                                                                                                class="mord mathrm">2</span>
+            </span>
+            </span>
+            <span class="baseline-fix">
+                                                                                                                                                                                                                                                                    <span
+                                                                                                                                                                                                                                                                        class="fontsize-ensurer reset-size5 size5">
+                                                                                                                                                                                                                                                                        <span
+                                                                                                                                                                                                                                                                            style="font-size:0em;">​</span>
+            </span>​</span>
+            </span>
+            </span>
+            </span>
+            </span>
+            </span>
+            <span class="baseline-fix">
+                                                                                                                                                                                                                                                                                <span
+                                                                                                                                                                                                                                                                                    class="fontsize-ensurer reset-size5 size5">
+                                                                                                                                                                                                                                                                                    <span
+                                                                                                                                                                                                                                                                                        style="font-size:0em;">​</span>
+            </span>​</span>
+            </span>
+            </span>
+            <span class="mord">
+                                                                                                                                                                                                                                                                                            <span
+                                                                                                                                                                                                                                                                                                class="mord mathit">ρ</span>
+            <span class="vlist">
+                                                                                                                                                                                                                                                                                                    <span
+                                                                                                                                                                                                                                                                                                        style="top:0.15em;margin-right:0.05em;margin-left:0em;">
+                                                                                                                                                                                                                                                                                                        <span
+                                                                                                                                                                                                                                                                                                            class="fontsize-ensurer reset-size5 size5">
+                                                                                                                                                                                                                                                                                                            <span
+                                                                                                                                                                                                                                                                                                                style="font-size:0em;">​</span>
+            </span>
+            <span class="reset-textstyle scriptstyle cramped">
+                                                                                                                                                                                                                                                                                                                    <span
+                                                                                                                                                                                                                                                                                                                        class="mord mathit">p</span>
+            </span>
+            </span>
+            <span class="baseline-fix">
+                                                                                                                                                                                                                                                                                                                            <span
+                                                                                                                                                                                                                                                                                                                                class="fontsize-ensurer reset-size5 size5">
+                                                                                                                                                                                                                                                                                                                                <span
+                                                                                                                                                                                                                                                                                                                                    style="font-size:0em;">​</span>
+            </span>​</span>
+            </span>
+            </span>
+            <span class="mopen">(</span>
+            <span class="mord mathit">x</span>
+            <span class="mpunct">,</span>
+            <span class="mord mathit" style="margin-right:0.03588em;">ω</span>
+            <span class="mpunct">,</span>
+            <span class="mord">
+                                                                                                                                                                                                                                                                                                                                                            <span
+                                                                                                                                                                                                                                                                                                                                                                class="mord mathit"
+                                                                                                                                                                                                                                                                                                                                                                style="margin-right:0.03588em;">ω</span>
+            <span class="vlist">
+                                                                                                                                                                                                                                                                                                                                                                    <span
+                                                                                                                                                                                                                                                                                                                                                                        style="top:-0.413em;margin-right:0.05em;">
+                                                                                                                                                                                                                                                                                                                                                                        <span
+                                                                                                                                                                                                                                                                                                                                                                            class="fontsize-ensurer reset-size5 size5">
+                                                                                                                                                                                                                                                                                                                                                                            <span
+                                                                                                                                                                                                                                                                                                                                                                                style="font-size:0em;">​</span>
+            </span>
+            <span class="reset-textstyle scriptstyle uncramped">
+                                                                                                                                                                                                                                                                                                                                                                                    <span
+                                                                                                                                                                                                                                                                                                                                                                                        class="mord scriptstyle uncramped">
+                                                                                                                                                                                                                                                                                                                                                                                        <span
+                                                                                                                                                                                                                                                                                                                                                                                            class="mord mathrm">′</span>
+            </span>
+            </span>
+            </span>
+            <span class="baseline-fix">
+                                                                                                                                                                                                                                                                                                                                                                                                <span
+                                                                                                                                                                                                                                                                                                                                                                                                    class="fontsize-ensurer reset-size5 size5">
+                                                                                                                                                                                                                                                                                                                                                                                                    <span
+                                                                                                                                                                                                                                                                                                                                                                                                        style="font-size:0em;">​</span>
+            </span>​</span>
+            </span>
+            </span>
+            <span class="mclose">)</span>
+            <span class="mord">
+                                                                                                                                                                                                                                                                                                                                                                                                                <span
+                                                                                                                                                                                                                                                                                                                                                                                                                    class="mord mathit">L</span>
+            <span class="vlist">
+                                                                                                                                                                                                                                                                                                                                                                                                                        <span
+                                                                                                                                                                                                                                                                                                                                                                                                                            style="top:0.15em;margin-right:0.05em;margin-left:0em;">
+                                                                                                                                                                                                                                                                                                                                                                                                                            <span
+                                                                                                                                                                                                                                                                                                                                                                                                                                class="fontsize-ensurer reset-size5 size5">
+                                                                                                                                                                                                                                                                                                                                                                                                                                <span
+                                                                                                                                                                                                                                                                                                                                                                                                                                    style="font-size:0em;">​</span>
+            </span>
+            <span class="reset-textstyle scriptstyle cramped">
+                                                                                                                                                                                                                                                                                                                                                                                                                                        <span
+                                                                                                                                                                                                                                                                                                                                                                                                                                            class="mord mathit">d</span>
+            </span>
+            </span>
+            <span class="baseline-fix">
+                                                                                                                                                                                                                                                                                                                                                                                                                                                <span
+                                                                                                                                                                                                                                                                                                                                                                                                                                                    class="fontsize-ensurer reset-size5 size5">
+                                                                                                                                                                                                                                                                                                                                                                                                                                                    <span
+                                                                                                                                                                                                                                                                                                                                                                                                                                                        style="font-size:0em;">​</span>
+            </span>​</span>
+            </span>
+            </span>
+            <span class="mopen">(</span>
+            <span class="mord mathit">x</span>
+            <span class="mpunct">,</span>
+            <span class="mord">
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                        <span
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                            class="mord mathit"
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                            style="margin-right:0.03588em;">ω</span>
+            <span class="vlist">
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                <span
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    style="top:-0.413em;margin-right:0.05em;">
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    <span
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        class="fontsize-ensurer reset-size5 size5">
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        <span
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            style="font-size:0em;">​</span>
+            </span>
+            <span class="reset-textstyle scriptstyle uncramped">
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                <span
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    class="mord scriptstyle uncramped">
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    <span
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        class="mord mathrm">′</span>
+            </span>
+            </span>
+            </span>
+            <span class="baseline-fix">
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            <span
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                class="fontsize-ensurer reset-size5 size5">
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                <span
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    style="font-size:0em;">​</span>
+            </span>​</span>
+            </span>
+            </span>
+            <span class="mclose">)</span>
+            <span class="mord mathit">d</span>
+            <span class="mord">
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                <span
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    class="mord mathit"
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    style="margin-right:0.03588em;">ω</span>
+            <span class="vlist">
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        <span
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            style="top:-0.413em;margin-right:0.05em;">
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            <span
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                class="fontsize-ensurer reset-size5 size5">
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                <span
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    style="font-size:0em;">​</span>
+            </span>
+            <span class="reset-textstyle scriptstyle uncramped">
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        <span
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            class="mord scriptstyle uncramped">
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            <span
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                class="mord mathrm">′</span>
+            </span>
+            </span>
+            </span>
+            <span class="baseline-fix">
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    <span
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        class="fontsize-ensurer reset-size5 size5">
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        <span
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            style="font-size:0em;">​</span>
+            </span>​</span>
+            </span>
+            </span>
+            <span class="style-wrap reset-textstyle textstyle uncramped" style="top:0em;">
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                <span
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    class="delimsizing size3">]</span>
+            </span>
+            </span>
+            <span class="mord mathit">d</span>
+            <span class="mord">
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            <span
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                class="mord mathit">t</span>
+            <span class="vlist">
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    <span
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        style="top:-0.413em;margin-right:0.05em;">
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        <span
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            class="fontsize-ensurer reset-size5 size5">
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            <span
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                style="font-size:0em;">​</span>
+            </span>
+            <span class="reset-textstyle scriptstyle uncramped">
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    <span
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        class="mord scriptstyle uncramped">
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        <span
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            class="mord mathrm">′</span>
+            </span>
+            </span>
+            </span>
+            <span class="baseline-fix">
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                <span
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    class="fontsize-ensurer reset-size5 size5">
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    <span
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        style="font-size:0em;">​</span>
+            </span>​</span>
+            </span>
+            </span>
+            </span>
+            </span>
+            </span>
+            </span>
+        </eqn>
+    </section>
+    <h3>Whats Next and Review of Schedule</h3>
+    <p>The next two weeks of the project we will be primarily focused on implementing the volumetric pathtracing portion of
+        our project. Now that we have our basic application in place here is the order in which we plan to implement the
+        rest of the project:</p>
+    <p>First we will implement the volumetric path tracing model where a scattering event may occur along the ray before a surface
+        intersection
+    </p>
+    <section>
+        <eqn><span class="katex-display"><span class="katex"><span class="katex-mathml"><math><semantics><mrow><mi>L</mi><mo>(</mo><mi>x</mi><mo separator="true">,</mo><mi>ω</mi><mo>)</mo><mo>=</mo><msubsup><mo>∫</mo><mrow><mn>0</mn></mrow><mrow><mi mathvariant="normal">∞</mi></mrow></msubsup><mrow><mo fence="true">[</mo><mi>s</mi><mo>&lt;</mo><mi>d</mi><mspace width="1em"></mspace><mo>?</mo><mspace width="1em"></mspace><msub><mi>L</mi><mrow><mi>v</mi><mi>o</mi><mi>l</mi></mrow></msub><mo>(</mo><mi>x</mi><mo>+</mo><mi>s</mi><mi>ω</mi><mo separator="true">,</mo><mo>−</mo><mi>ω</mi><mo>)</mo><mspace width="1em"></mspace><mo>:</mo><mspace width="1em"></mspace><msub><mi>L</mi><mrow><mi>s</mi><mi>u</mi><mi>r</mi><mi>f</mi></mrow></msub><mo>(</mo><mi>x</mi><mo>+</mo><mi>d</mi><mi>ω</mi><mo separator="true">,</mo><mo>−</mo><mi>ω</mi><mo>)</mo><mo fence="true">]</mo></mrow><msub><mi>σ</mi><mrow><mi>t</mi></mrow></msub><msup><mi>e</mi><mrow><mo>−</mo><msub><mi>σ</mi><mrow><mi>t</mi></mrow></msub><mi>s</mi></mrow></msup></mrow><annotation encoding="application/x-tex">L(x,\\omega) = \\int\_{0}^{\\infty}\\left[s &lt; d\\quad?\\quad L\_{vol}(x + s\\omega, -\\omega)\\quad:\\quad L\_{surf}(x + d\\omega, -\\omega)\\right]\\sigma\_{t}e^{-\\sigma\_{t}s}</annotation></semantics></math></span>
+            <span class="katex-html" aria-hidden="true"><span class="strut" style="height:1.36em;"></span><span class="strut bottom"
+                style="height:2.27225em;vertical-align:-0.91225em;"></span>
+            <span class="base displaystyle textstyle uncramped"><span class="mord mathit">L</span><span class="mopen">(</span>
+            <span class="mord mathit">x</span><span class="mpunct">,</span>
+            <span class="mord mathit" style="margin-right:0.03588em;">ω</span><span class="mclose">)</span><span class="mrel">=</span>
+            <span class="mop"><span class="op-symbol large-op mop" style="margin-right:0.44445em;top:-0.0011249999999999316em;">∫</span>
+            <span class="vlist"><span style="top:0.91225em;margin-left:-0.44445em;margin-right:0.05em;"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>
+            <span class="reset-textstyle scriptstyle cramped"><span class="mord scriptstyle cramped"><span class="mord mathrm">0</span></span>
+            </span>
+            </span><span style="top:-0.9739999999999999em;margin-right:0.05em;"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>
+            <span class="reset-textstyle scriptstyle uncramped"><span class="mord scriptstyle uncramped"><span class="mord mathrm">∞</span></span>
+            </span>
+            </span><span class="baseline-fix"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>​</span>
+            </span>
+            </span><span class="minner displaystyle textstyle uncramped"><span class="style-wrap reset-textstyle textstyle uncramped" style="top:0em;">[</span>
+            <span class="mord mathit">s</span><span class="mrel">&lt;</span><span class="mord mathit">d</span>
+            <span class="mord mspace quad"></span>
+            <span class="mclose">?</span><span class="mord mspace quad"></span><span class="mord"><span class="mord mathit">L</span>
+            <span class="vlist"><span style="top:0.15em;margin-right:0.05em;margin-left:0em;"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>
+            <span class="reset-textstyle scriptstyle cramped"><span class="mord scriptstyle cramped"><span class="mord mathit" style="margin-right:0.03588em;">v</span>
+            <span class="mord mathit">o</span><span class="mord mathit" style="margin-right:0.01968em;">l</span></span>
+            </span>
+            </span><span class="baseline-fix"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>​</span>
+            </span>
+            </span><span class="mopen">(</span><span class="mord mathit">x</span>
+            <span class="mbin">+</span><span class="mord mathit">s</span><span class="mord mathit" style="margin-right:0.03588em;">ω</span>
+            <span class="mpunct">,</span>
+            <span class="mord">−</span><span class="mord mathit" style="margin-right:0.03588em;">ω</span>
+            <span class="mclose">)</span><span class="mord mspace quad"></span><span class="mrel">:</span>
+            <span class="mord mspace quad"></span><span class="mord"><span class="mord mathit">L</span>
+            <span class="vlist"><span style="top:0.15em;margin-right:0.05em;margin-left:0em;"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>
+            <span class="reset-textstyle scriptstyle cramped"><span class="mord scriptstyle cramped"><span class="mord mathit">s</span>
+            <span class="mord mathit">u</span><span class="mord mathit" style="margin-right:0.02778em;">r</span>
+            <span class="mord mathit" style="margin-right:0.10764em;">f</span>
+            </span>
+            </span>
+            </span><span class="baseline-fix"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>​</span>
+            </span>
+            </span><span class="mopen">(</span>
+            <span class="mord mathit">x</span><span class="mbin">+</span>
+            <span class="mord mathit">d</span><span class="mord mathit" style="margin-right:0.03588em;">ω</span>
+            <span class="mpunct">,</span><span class="mord">−</span>
+            <span class="mord mathit" style="margin-right:0.03588em;">ω</span><span class="mclose">)</span>
+            <span class="style-wrap reset-textstyle textstyle uncramped" style="top:0em;">]</span>
+            </span><span class="mord"><span class="mord mathit" style="margin-right:0.03588em;">σ</span>
+            <span class="vlist"><span style="top:0.15em;margin-right:0.05em;margin-left:-0.03588em;"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>
+            <span class="reset-textstyle scriptstyle cramped"><span class="mord scriptstyle cramped"><span class="mord mathit">t</span></span>
+            </span>
+            </span>
+            <span class="baseline-fix">
+                                                                                                                        <span
+                                                                                                                            class="fontsize-ensurer reset-size5 size5">
+                                                                                                                            <span
+                                                                                                                                style="font-size:0em;">​</span>
+            </span>​</span>
+            </span>
+            </span>
+            <span class="mord">
+                                                                                                                                    <span
+                                                                                                                                        class="mord mathit">e</span>
+            <span class="vlist">
+                                                                                                                                            <span
+                                                                                                                                                style="top:-0.413em;margin-right:0.05em;">
+                                                                                                                                                <span
+                                                                                                                                                    class="fontsize-ensurer reset-size5 size5">
+                                                                                                                                                    <span
+                                                                                                                                                        style="font-size:0em;">​</span>
+            </span>
+            <span class="reset-textstyle scriptstyle uncramped">
+                                                                                                                                                            <span
+                                                                                                                                                                class="mord scriptstyle uncramped">
+                                                                                                                                                                <span
+                                                                                                                                                                    class="mord">−</span>
+            <span class="mord">
+                                                                                                                                                                        <span
+                                                                                                                                                                            class="mord mathit"
+                                                                                                                                                                            style="margin-right:0.03588em;">σ</span>
+            <span class="vlist">
+                                                                                                                                                                                <span
+                                                                                                                                                                                    style="top:0.15em;margin-right:0.07142857142857144em;margin-left:-0.03588em;">
+                                                                                                                                                                                    <span
+                                                                                                                                                                                        class="fontsize-ensurer reset-size5 size5">
+                                                                                                                                                                                        <span
+                                                                                                                                                                                            style="font-size:0em;">​</span>
+            </span>
+            <span class="reset-scriptstyle scriptscriptstyle cramped">
+                                                                                                                                                                                                <span
+                                                                                                                                                                                                    class="mord scriptscriptstyle cramped">
+                                                                                                                                                                                                    <span
+                                                                                                                                                                                                        class="mord mathit">t</span>
+            </span>
+            </span>
+            </span>
+            <span class="baseline-fix">
+                                                                                                                                                                                                            <span
+                                                                                                                                                                                                                class="fontsize-ensurer reset-size5 size5">
+                                                                                                                                                                                                                <span
+                                                                                                                                                                                                                    style="font-size:0em;">​</span>
+            </span>​</span>
+            </span>
+            </span>
+            <span class="mord mathit">s</span>
+            </span>
+            </span>
+            </span>
+            <span class="baseline-fix">
+                                                                                                                                                                                                                            <span
+                                                                                                                                                                                                                                class="fontsize-ensurer reset-size5 size5">
+                                                                                                                                                                                                                                <span
+                                                                                                                                                                                                                                    style="font-size:0em;">​</span>
+            </span>​</span>
+            </span>
+            </span>
+            </span>
+            </span>
+            </span>
+            </span>
+        </eqn>
+    </section>
+    <p>where</p>
+    <section>
+        <eqn><span class="katex-display"><span class="katex"><span class="katex-mathml"><math><semantics><mrow><msub><mi>L</mi><mrow><mi>v</mi><mi>o</mi><mi>l</mi></mrow></msub><mo>(</mo><mi>x</mi><mo separator="true">,</mo><mi>ω</mi><mo>)</mo><mo>=</mo><msub><mo>∫</mo><mrow><msub><mi>S</mi><mn>2</mn></msub></mrow></msub><mrow><mfrac><mrow><msub><mi>σ</mi><mi>s</mi></msub></mrow><mrow><msub><mi>σ</mi><mi>t</mi></msub></mrow></mfrac></mrow><msub><mi>ρ</mi><mi>p</mi></msub><mo>(</mo><mi>x</mi><mo separator="true">,</mo><mi>ω</mi><mo separator="true">,</mo><msup><mi>ω</mi><mrow><mi mathvariant="normal">′</mi></mrow></msup><mo>)</mo><mi>L</mi><mo>(</mo><mi>x</mi><mo separator="true">,</mo><msup><mi>ω</mi><mrow><mi mathvariant="normal">′</mi></mrow></msup><mo>)</mo><mi>d</mi><msup><mi>ω</mi><mrow><mi mathvariant="normal">′</mi></mrow></msup></mrow><annotation encoding="application/x-tex">L\_{vol}(x, \\omega) = \\int\_{S\_2}{\\sigma\_s\\over\\sigma\_t}\\rho\_p(x, \\omega, \\omega&#x27;)L(x, \\omega&#x27;)d\\omega&#x27;</annotation></semantics></math></span>
+            <span class="katex-html" aria-hidden="true"><span class="strut" style="height:1.36em;"></span><span class="strut bottom"
+                style="height:2.37725em;vertical-align:-1.01725em;"></span>
+            <span class="base displaystyle textstyle uncramped"><span class="mord"><span class="mord mathit">L</span>
+            <span class="vlist"><span style="top:0.15em;margin-right:0.05em;margin-left:0em;"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>
+            <span class="reset-textstyle scriptstyle cramped"><span class="mord scriptstyle cramped"><span class="mord mathit" style="margin-right:0.03588em;">v</span>
+            <span class="mord mathit">o</span><span class="mord mathit" style="margin-right:0.01968em;">l</span></span>
+            </span>
+            </span><span class="baseline-fix"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>​</span>
+            </span>
+            </span><span class="mopen">(</span><span class="mord mathit">x</span><span class="mpunct">,</span>
+            <span class="mord mathit" style="margin-right:0.03588em;">ω</span><span class="mclose">)</span><span class="mrel">=</span>
+            <span class="mop"><span class="op-symbol large-op mop" style="margin-right:0.44445em;top:-0.0011249999999999316em;">∫</span>
+            <span class="vlist"><span style="top:0.91225em;margin-right:0.05em;margin-left:-0.44445em;"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>
+            <span class="reset-textstyle scriptstyle cramped"><span class="mord scriptstyle cramped"><span class="mord"><span class="mord mathit" style="margin-right:0.05764em;">S</span>
+            <span class="vlist"><span style="top:0.15em;margin-right:0.07142857142857144em;margin-left:-0.05764em;"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>
+            <span class="reset-scriptstyle scriptscriptstyle cramped"><span class="mord mathrm">2</span></span>
+            </span><span class="baseline-fix"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>​</span>
+            </span>
+            </span>
+            </span>
+            </span>
+            </span><span class="baseline-fix"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>​</span>
+            </span>
+            </span><span class="mord displaystyle textstyle uncramped"><span class="mord reset-textstyle displaystyle textstyle uncramped"><span class="sizing reset-size5 size5 reset-textstyle textstyle uncramped nulldelimiter"></span>
+            <span class="mfrac"><span class="vlist"><span style="top:0.686em;"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>
+            <span class="reset-textstyle textstyle cramped"><span class="mord textstyle cramped"><span class="mord"><span class="mord mathit" style="margin-right:0.03588em;">σ</span>
+            <span class="vlist"><span style="top:0.15em;margin-right:0.05em;margin-left:-0.03588em;"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>
+            <span class="reset-textstyle scriptstyle cramped"><span class="mord mathit">t</span></span>
+            </span><span class="baseline-fix"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>​</span>
+            </span>
+            </span>
+            </span>
+            </span>
+            </span><span style="top:-0.22999999999999998em;"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>
+            <span class="reset-textstyle textstyle uncramped frac-line"></span>
+            </span><span style="top:-0.677em;"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>
+            <span class="reset-textstyle textstyle uncramped"><span class="mord textstyle uncramped"><span class="mord"><span class="mord mathit" style="margin-right:0.03588em;">σ</span>
+            <span class="vlist"><span style="top:0.15em;margin-right:0.05em;margin-left:-0.03588em;"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>
+            <span class="reset-textstyle scriptstyle cramped"><span class="mord mathit">s</span></span>
+            </span><span class="baseline-fix"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>​</span>
+            </span>
+            </span>
+            </span>
+            </span>
+            </span><span class="baseline-fix"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>​</span>
+            </span>
+            </span><span class="sizing reset-size5 size5 reset-textstyle textstyle uncramped nulldelimiter"></span></span>
+            </span><span class="mord"><span class="mord mathit">ρ</span>
+            <span class="vlist"><span style="top:0.15em;margin-right:0.05em;margin-left:0em;"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>
+            <span class="reset-textstyle scriptstyle cramped"><span class="mord mathit">p</span></span>
+            </span><span class="baseline-fix"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>​</span>
+            </span>
+            </span><span class="mopen">(</span>
+            <span class="mord mathit">x</span><span class="mpunct">,</span>
+            <span class="mord mathit" style="margin-right:0.03588em;">ω</span><span class="mpunct">,</span>
+            <span class="mord"><span class="mord mathit"
+                                                                                                        style="margin-right:0.03588em;">ω</span>
+            <span class="vlist"><span style="top:-0.413em;margin-right:0.05em;"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>
+            <span class="reset-textstyle scriptstyle uncramped"><span class="mord scriptstyle uncramped"><span class="mord mathrm">′</span></span>
+            </span>
+            </span><span class="baseline-fix"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>​</span>
+            </span>
+            </span><span class="mclose">)</span>
+            <span class="mord mathit">L</span>
+            <span class="mopen">(</span>
+            <span class="mord mathit">x</span>
+            <span class="mpunct">,</span>
+            <span class="mord">
+                                                                                                                                <span
+                                                                                                                                    class="mord mathit"
+                                                                                                                                    style="margin-right:0.03588em;">ω</span>
+            <span class="vlist">
+                                                                                                                                        <span
+                                                                                                                                            style="top:-0.413em;margin-right:0.05em;">
+                                                                                                                                            <span
+                                                                                                                                                class="fontsize-ensurer reset-size5 size5">
+                                                                                                                                                <span
+                                                                                                                                                    style="font-size:0em;">​</span>
+            </span>
+            <span class="reset-textstyle scriptstyle uncramped">
+                                                                                                                                                        <span
+                                                                                                                                                            class="mord scriptstyle uncramped">
+                                                                                                                                                            <span
+                                                                                                                                                                class="mord mathrm">′</span>
+            </span>
+            </span>
+            </span>
+            <span class="baseline-fix">
+                                                                                                                                                                    <span
+                                                                                                                                                                        class="fontsize-ensurer reset-size5 size5">
+                                                                                                                                                                        <span
+                                                                                                                                                                            style="font-size:0em;">​</span>
+            </span>​</span>
+            </span>
+            </span>
+            <span class="mclose">)</span>
+            <span class="mord mathit">d</span>
+            <span class="mord">
+                                                                                                                                                                                        <span
+                                                                                                                                                                                            class="mord mathit"
+                                                                                                                                                                                            style="margin-right:0.03588em;">ω</span>
+            <span class="vlist">
+                                                                                                                                                                                                <span
+                                                                                                                                                                                                    style="top:-0.413em;margin-right:0.05em;">
+                                                                                                                                                                                                    <span
+                                                                                                                                                                                                        class="fontsize-ensurer reset-size5 size5">
+                                                                                                                                                                                                        <span
+                                                                                                                                                                                                            style="font-size:0em;">​</span>
+            </span>
+            <span class="reset-textstyle scriptstyle uncramped">
+                                                                                                                                                                                                                <span
+                                                                                                                                                                                                                    class="mord scriptstyle uncramped">
+                                                                                                                                                                                                                    <span
+                                                                                                                                                                                                                        class="mord mathrm">′</span>
+            </span>
+            </span>
+            </span>
+            <span class="baseline-fix">
+                                                                                                                                                                                                                            <span
+                                                                                                                                                                                                                                class="fontsize-ensurer reset-size5 size5">
+                                                                                                                                                                                                                                <span
+                                                                                                                                                                                                                                    style="font-size:0em;">​</span>
+            </span>​</span>
+            </span>
+            </span>
+            </span>
+            </span>
+            </span>
+            </span>
+        </eqn>
+    </section>
+    <section>
+        <eqn><span class="katex-display"><span class="katex"><span class="katex-mathml"><math><semantics><mrow><msub><mi>L</mi><mrow><mi>s</mi><mi>u</mi><mi>r</mi><mi>f</mi></mrow></msub><mo>(</mo><mi>x</mi><mo separator="true">,</mo><mi>ω</mi><mo>)</mo><mo>=</mo><msub><mi>L</mi><mi>e</mi></msub><mo>(</mo><mi>x</mi><mo separator="true">,</mo><mi>ω</mi><mo>)</mo><mo>+</mo><msub><mo>∫</mo><mrow><mi>S</mi></mrow></msub><msub><mi>ρ</mi><mi>r</mi></msub><mo>(</mo><mi>x</mi><mo separator="true">,</mo><mi>ω</mi><mo separator="true">,</mo><msup><mi>ω</mi><mrow><mi mathvariant="normal">′</mi></mrow></msup><mo>)</mo><mi>L</mi><mo>(</mo><mi>x</mi><mo separator="true">,</mo><msup><mi>ω</mi><mrow><mi mathvariant="normal">′</mi></mrow></msup><mo>)</mo><mi mathvariant="normal">∣</mi><mi>cos</mi><mrow><msup><mi>θ</mi><mrow><mi mathvariant="normal">′</mi></mrow></msup></mrow><mi mathvariant="normal">∣</mi><mi>d</mi><msup><mi>ω</mi><mrow><mi mathvariant="normal">′</mi></mrow></msup></mrow><annotation encoding="application/x-tex">L\_{surf}(x, \\omega) = L\_e(x, \\omega) + \\int\_{S}\\rho\_r(x, \\omega, \\omega&#x27;)L(x, \\omega&#x27;)|\\cos{\\theta&#x27;}|d\\omega&#x27;</annotation></semantics></math></span>
+            <span class="katex-html" aria-hidden="true"><span class="strut" style="height:1.36em;"></span><span class="strut bottom"
+                style="height:2.27225em;vertical-align:-0.91225em;"></span>
+            <span class="base displaystyle textstyle uncramped"><span class="mord"><span class="mord mathit">L</span>
+            <span class="vlist"><span style="top:0.15em;margin-right:0.05em;margin-left:0em;"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>
+            <span class="reset-textstyle scriptstyle cramped"><span class="mord scriptstyle cramped"><span class="mord mathit">s</span>
+            <span class="mord mathit">u</span>
+            <span class="mord mathit" style="margin-right:0.02778em;">r</span><span class="mord mathit" style="margin-right:0.10764em;">f</span></span>
+            </span>
+            </span><span class="baseline-fix"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>​</span>
+            </span>
+            </span><span class="mopen">(</span><span class="mord mathit">x</span><span class="mpunct">,</span>
+            <span class="mord mathit" style="margin-right:0.03588em;">ω</span><span class="mclose">)</span>
+            <span class="mrel">=</span><span class="mord"><span class="mord mathit">L</span>
+            <span class="vlist"><span style="top:0.15em;margin-right:0.05em;margin-left:0em;"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>
+            <span class="reset-textstyle scriptstyle cramped"><span class="mord mathit">e</span></span>
+            </span><span class="baseline-fix"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>​</span>
+            </span>
+            </span><span class="mopen">(</span><span class="mord mathit">x</span><span class="mpunct">,</span>
+            <span class="mord mathit" style="margin-right:0.03588em;">ω</span><span class="mclose">)</span>
+            <span class="mbin">+</span><span class="mop"><span class="op-symbol large-op mop" style="margin-right:0.44445em;top:-0.0011249999999999316em;">∫</span>
+            <span class="vlist"><span style="top:0.91225em;margin-right:0.05em;margin-left:-0.44445em;"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>
+            <span class="reset-textstyle scriptstyle cramped"><span class="mord scriptstyle cramped"><span class="mord mathit" style="margin-right:0.05764em;">S</span></span>
+            </span>
+            </span><span class="baseline-fix"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>​</span>
+            </span>
+            </span><span class="mord"><span class="mord mathit">ρ</span><span class="vlist"><span style="top:0.15em;margin-right:0.05em;margin-left:0em;"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>
+            <span class="reset-textstyle scriptstyle cramped"><span class="mord mathit" style="margin-right:0.02778em;">r</span></span>
+            </span><span class="baseline-fix"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>​</span>
+            </span>
+            </span><span class="mopen">(</span><span class="mord mathit">x</span>
+            <span class="mpunct">,</span><span class="mord mathit" style="margin-right:0.03588em;">ω</span>
+            <span class="mpunct">,</span><span class="mord"><span class="mord mathit" style="margin-right:0.03588em;">ω</span>
+            <span class="vlist"><span style="top:-0.413em;margin-right:0.05em;"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>
+            <span class="reset-textstyle scriptstyle uncramped"><span class="mord scriptstyle uncramped"><span class="mord mathrm">′</span></span>
+            </span>
+            </span><span class="baseline-fix"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>​</span>
+            </span>
+            </span><span class="mclose">)</span><span class="mord mathit">L</span>
+            <span class="mopen">(</span><span class="mord mathit">x</span><span class="mpunct">,</span>
+            <span class="mord"><span class="mord mathit" style="margin-right:0.03588em;">ω</span>
+            <span class="vlist"><span style="top:-0.413em;margin-right:0.05em;"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>
+            <span class="reset-textstyle scriptstyle uncramped"><span class="mord scriptstyle uncramped"><span class="mord mathrm">′</span></span>
+            </span>
+            </span><span class="baseline-fix"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>​</span>
+            </span>
+            </span><span class="mclose">)</span>
+            <span class="mord mathrm">∣</span><span class="mop">cos</span>
+            <span class="mord displaystyle textstyle uncramped"><span class="mord"><span class="mord mathit" style="margin-right:0.02778em;">θ</span>
+            <span class="vlist"><span style="top:-0.413em;margin-right:0.05em;"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>
+            <span class="reset-textstyle scriptstyle uncramped"><span class="mord scriptstyle uncramped"><span class="mord mathrm">′</span></span>
+            </span>
+            </span><span class="baseline-fix"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>​</span>
+            </span>
+            </span>
+            </span><span class="mord mathrm">∣</span>
+            <span class="mord mathit">d</span><span class="mord"><span class="mord mathit" style="margin-right:0.03588em;">ω</span>
+            <span class="vlist"><span style="top:-0.413em;margin-right:0.05em;"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>
+            <span class="reset-textstyle scriptstyle uncramped"><span class="mord scriptstyle uncramped"><span class="mord mathrm">′</span></span>
+            </span>
+            </span>
+            <span class="baseline-fix">
+                                                                                                                        <span
+                                                                                                                            class="fontsize-ensurer reset-size5 size5">
+                                                                                                                            <span
+                                                                                                                                style="font-size:0em;">​</span>
+            </span>​</span>
+            </span>
+            </span>
+            </span>
+            </span>
+            </span>
+            </span>
+        </eqn>
+    </section>
+    <p>The primary distinction betewwn
+        <eq><span class="katex"><span class="katex-mathml"><math><semantics><mrow><msub><mi>L</mi><mrow><mi>v</mi><mi>o</mi><mi>l</mi></mrow></msub></mrow><annotation encoding="application/x-tex">L_{vol}</annotation></semantics></math></span>
+            <span class="katex-html" aria-hidden="true"><span class="strut" style="height:0.68333em;"></span><span class="strut bottom"
+                style="height:0.83333em;vertical-align:-0.15em;"></span>
+            <span class="base textstyle uncramped"><span class="mord"><span class="mord mathit">L</span><span class="vlist"><span style="top:0.15em;margin-right:0.05em;margin-left:0em;"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>
+            <span class="reset-textstyle scriptstyle cramped"><span class="mord scriptstyle cramped"><span class="mord mathit" style="margin-right:0.03588em;">v</span>
+            <span class="mord mathit">o</span><span class="mord mathit" style="margin-right:0.01968em;">l</span></span>
+            </span>
+            </span><span class="baseline-fix"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>​</span>
+            </span>
+            </span>
+            </span>
+            </span>
+            </span>
+        </eq> and
+        <eq><span class="katex"><span class="katex-mathml"><math><semantics><mrow><msub><mi>L</mi><mrow><mi>s</mi><mi>u</mi><mi>r</mi><mi>f</mi></mrow></msub></mrow><annotation encoding="application/x-tex">L_{surf}</annotation></semantics></math></span>
+            <span class="katex-html" aria-hidden="true"><span class="strut" style="height:0.68333em;"></span><span class="strut bottom"
+                style="height:0.969438em;vertical-align:-0.286108em;"></span>
+            <span class="base textstyle uncramped"><span class="mord"><span class="mord mathit">L</span><span class="vlist"><span style="top:0.15em;margin-right:0.05em;margin-left:0em;"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>
+            <span class="reset-textstyle scriptstyle cramped"><span class="mord scriptstyle cramped"><span class="mord mathit">s</span>
+            <span class="mord mathit">u</span>
+            <span class="mord mathit" style="margin-right:0.02778em;">r</span><span class="mord mathit" style="margin-right:0.10764em;">f</span></span>
+            </span>
+            </span><span class="baseline-fix"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>​</span>
+            </span>
+            </span>
+            </span>
+            </span>
+            </span>
+        </eq> being that for points evaluated in a medium will use a phase distribution function (
+        <eq><span class="katex"><span class="katex-mathml"><math><semantics><mrow><msub><mi>ρ</mi><mi>p</mi></msub></mrow><annotation encoding="application/x-tex">\rho_p</annotation></semantics></math></span>
+            <span class="katex-html" aria-hidden="true"><span class="strut" style="height:0.43056em;"></span><span class="strut bottom"
+                style="height:0.716668em;vertical-align:-0.286108em;"></span>
+            <span class="base textstyle uncramped"><span class="mord"><span class="mord mathit">ρ</span><span class="vlist"><span style="top:0.15em;margin-right:0.05em;margin-left:0em;"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>
+            <span class="reset-textstyle scriptstyle cramped"><span class="mord mathit">p</span></span>
+            </span><span class="baseline-fix"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>​</span>
+            </span>
+            </span>
+            </span>
+            </span>
+            </span>
+        </eq>) while the points evaluated at surface intersection will use a BRDF (
+        <eq><span class="katex"><span class="katex-mathml"><math><semantics><mrow><msub><mi>ρ</mi><mi>r</mi></msub></mrow><annotation encoding="application/x-tex">\rho_r</annotation></semantics></math></span>
+            <span class="katex-html" aria-hidden="true"><span class="strut" style="height:0.43056em;"></span><span class="strut bottom"
+                style="height:0.625em;vertical-align:-0.19444em;"></span>
+            <span class="base textstyle uncramped"><span class="mord"><span class="mord mathit">ρ</span><span class="vlist"><span style="top:0.15em;margin-right:0.05em;margin-left:0em;"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>
+            <span class="reset-textstyle scriptstyle cramped"><span class="mord mathit" style="margin-right:0.02778em;">r</span></span>
+            </span><span class="baseline-fix"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>​</span>
+            </span>
+            </span>
+            </span>
+            </span>
+            </span>
+        </eq>).</p>
+    <p>Next we will consider the case for non-homogenous mediums. This will require use of a 3dBuffer of medium density data
+        to be transferred to the CUDA kernel and the use of a Ray marching algorithm and transfer function to convert density
+        data into optical parameters for the previously outlined volume rendering equations. At this stage we are considering
+        to use some type of 3d perlin noise to procedurally generate non-homogeneous density data on the CPU side.</p>
+
+
+
+
+    <!--LINK TO THE VIDEO HERE-->
+    <h2>Video</h2>
+    <p><a href="http://www.linkToOurVideo.com">LINK VIDEO HERE</a></p>
+    <h2>ACM Template</h2>
+    <p>We downloaded and began to look at the ACM template for formatting of the final report (see link below). Most of the
+        report is still from the template but will be updated as we continue to move forward.
+        <a href="./acm/godRay-acm.pdf">godRay-acm PDF</a></p>
+
+</body>
+
+</html>
