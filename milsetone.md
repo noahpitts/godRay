@@ -26,11 +26,20 @@ The single scattering model then adapts the emission/absorbtion model by includi
 $$L(x,\omega) = T_r(x_0\rightarrow x)L_0(x_0, -\omega) + \int_{0}^{t}T_r(x'\rightarrow x)\left[L_e(x_0, -\omega) + \sigma_s(x, \omega)\int_{s_2}\rho_p(x, \omega, \omega')L_d(x, \omega')d\omega' \right] dt'$$
 
 ### Whats Next and Review of Schedule
-The next two weeks of the project we will be primarily focused on implementing the volumetric rendering portion of our project. Now that we have our basic application in place here is the order in which we plan to implement the rest of the project:
-- implement the volumetric path tracing model where a scattering event may occur along the ray before a surface intersection
+The next two weeks of the project we will be primarily focused on implementing the volumetric pathtracing portion of our project. Now that we have our basic application in place here is the order in which we plan to implement the rest of the project:
 
-$$
+First we will implement the volumetric path tracing model where a scattering event may occur along the ray before a surface intersection
 
+$$L(x,\omega) = \int_{0}^{\infty}\left[s < d\quad?\quad L_{vol}(x + s\omega, -\omega)\quad:\quad L_{surf}(x + d\omega, -\omega)\right]\sigma_{t}e^{-\sigma_{t}s}$$
+
+where
+
+$$L_{vol}(x, \omega) = \int_{S_2}{\sigma_s\over\sigma_t}\rho_p(x, \omega, \omega')L(x, \omega')d\omega'$$
+$$L_{surf}(x, \omega) = L_e(x, \omega) + \int_{S}\rho_r(x, \omega, \omega')L(x, \omega')|\cos{\theta'}|d\omega'$$
+
+The primary distinction betewwn $L_{vol}$ and $L_{surf}$ being that for points evaluated in a medium will use a phase distribution function ($\rho_p$) while the points evaluated at surface intersection will use a BRDF ($\rho_r$).
+
+Next we will consider the case for non-homogenous mediums. This will require use of a 3dBuffer of medium density data to be transferred to the CUDA kernel and the use of a Ray marching algorithm and transfer function to convert density data into optical parameters for the previously outlined volume rendering equations. At this stage we are considering to use some type of 3d perlin noise to procedurally generate non-homogeneous density data on the CPU side.
 
 ## Video
 [LINK VIDEO HERE](http://www.linkToOurVideo.com)
