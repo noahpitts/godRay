@@ -28,6 +28,7 @@
 
 #include "helpers.h"
 #include "prd.h"
+#include "commonStructs.h"
 #include <optix.h>
 #include <optixu/optixu_math_namespace.h>
 
@@ -92,14 +93,20 @@ static __host__ __device__ __inline__ optix::float3 querySkyModel( bool CEL, con
 rtDeclareVariable(optix::Ray, ray, rtCurrentRay, );
 rtDeclareVariable(PerRayData_radiance, prd_radiance, rtPayload, );
 
+rtBuffer<DirectionalLight> light_buffer;
 
 RT_PROGRAM void miss()
 {
-    const bool show_sun = (prd_radiance.depth == 0);
-    prd_radiance.radiance = ray.direction.y <= 0.0f ? make_float3( 0.0f ) : querySkyModel( show_sun, ray.direction );
-    prd_radiance.done = true;
+  const DirectionalLight& light = light_buffer[0];
+  const float solid_angle = light.radius * light.radius * M_PIf;
+  float3 below_horizon = light.color * solid_angle;
 
-    // attenuation from the atmosphere
-    prd_radiance.attenuation *= exp(-sigma_a * atmosphere);
+  const bool show_sun = (prd_radiance.depth == 0);
+  prd_radiance.radiance = ray.direction.y <= 0.0f ? below_horizon : querySkyModel( show_sun, ray.direction );
+  prd_radiance.done = true;
+  
+
+  // attenuation from the atmosphere
+  prd_radiance.attenuation *= exp(-sigma_a * atmosphere);
 }
 

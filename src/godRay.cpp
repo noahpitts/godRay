@@ -314,6 +314,10 @@ optix::Aabb createGeometry(
         geometry_group->addChild(instance);
     }
 
+    {
+        // Sphere?
+    }
+
     context["top_object"]->set(geometry_group);
 
     return aabb;
