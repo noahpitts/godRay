@@ -53,61 +53,74 @@ rtBuffer<DirectionalLight> light_buffer;
 
 RT_PROGRAM void any_hit_shadow()
 {
-    prd_shadow.attenuation = make_float3( 0.0f );
-    rtTerminateRay();
+  prd_shadow.attenuation = make_float3( 0.0f );
+  rtTerminateRay();
 }
 
 // Note: both the hemisphere and direct light sampling below use pure random numbers to avoid any patent issues.
 // Stratified sampling or QMC would improve convergence.  Please keep this in mind when judging noise levels.
 
+__device__ float3 shadow_and_light(const float3 fhp, const float3 ffnormal, const DirectionalLight light) {
+  const float3 light_center = fhp + light.direction;
+  const float r1 = rnd( prd_radiance.seed );
+  const float r2 = rnd( prd_radiance.seed );
+  const float2 disk_sample = square_to_disk( make_float2( r1, r2 ) );
+  const float3 jittered_pos = light_center + light.radius*disk_sample.x*light.v0 + light.radius*disk_sample.y*light.v1;
+  const float3 L = normalize( jittered_pos - fhp );
+
+  const float NdotL = dot( ffnormal, L);
+  if(NdotL > 0.0f) {
+    PerRayData_shadow shadow_prd;
+    shadow_prd.attenuation = make_float3( 1.0f );
+    optix::Ray shadow_ray ( fhp, L, /*shadow ray type*/ 1, 0.0f );
+    rtTrace(top_object, shadow_ray, shadow_prd);
+
+    const float solid_angle = light.radius*light.radius*M_PIf;
+
+    float3 contribution = NdotL * light.color * solid_angle * shadow_prd.attenuation;
+    return contribution * exp(-sigma_a * atmosphere);
+  }
+  return make_float3(0.0f);
+}
+
 RT_PROGRAM void closest_hit_radiance()
 {
 
-    const float3 world_shading_normal   = normalize( rtTransformNormal( RT_OBJECT_TO_WORLD, shading_normal ) );
-    const float3 world_geometric_normal = normalize( rtTransformNormal( RT_OBJECT_TO_WORLD, geometric_normal ) );
-    const float3 ffnormal = faceforward( world_shading_normal, -ray.direction, world_geometric_normal );
+  const float3 world_shading_normal   = normalize( rtTransformNormal( RT_OBJECT_TO_WORLD, shading_normal ) );
+  const float3 world_geometric_normal = normalize( rtTransformNormal( RT_OBJECT_TO_WORLD, geometric_normal ) );
+  const float3 ffnormal = faceforward( world_shading_normal, -ray.direction, world_geometric_normal );
 
-    const float z1 = rnd( prd_radiance.seed );
-    const float z2 = rnd( prd_radiance.seed );
-    
-    float3 w_in;
-    optix::cosine_sample_hemisphere( z1, z2, w_in );
-    const optix::Onb onb( ffnormal );
-    onb.inverse_transform( w_in );
-    const float3 fhp = rtTransformPoint( RT_OBJECT_TO_WORLD, front_hit_point );
-    
-    float distance = optix::length(fhp - ray.origin);
-    float transmittance = exp(-sigma_a * distance);
+  const float z1 = rnd( prd_radiance.seed );
+  const float z2 = rnd( prd_radiance.seed );
 
-    prd_radiance.origin = front_hit_point;
-    prd_radiance.direction = w_in;
-    
-    prd_radiance.attenuation *= Kd * make_float3( geometry_color ) * transmittance;
+  float3 w_in;
+  optix::cosine_sample_hemisphere( z1, z2, w_in );
+  const optix::Onb onb( ffnormal );
+  onb.inverse_transform( w_in );
+  const float3 fhp = rtTransformPoint( RT_OBJECT_TO_WORLD, front_hit_point );
 
-    // Add direct light sample weighted by shadow term and 1/probability.
-    // The pdf for a directional area light is 1/solid_angle.
+  float3 dir = fhp - ray.origin;
+  float dist = optix::length(dir);
+  float transmittance = exp(-sigma_a * dist);
+  dir /= dist;
 
-    const DirectionalLight& light = light_buffer[0];
-    const float3 light_center = fhp + light.direction;
-    const float r1 = rnd( prd_radiance.seed );
-    const float r2 = rnd( prd_radiance.seed );
-    const float2 disk_sample = square_to_disk( make_float2( r1, r2 ) );
-    const float3 jittered_pos = light_center + light.radius*disk_sample.x*light.v0 + light.radius*disk_sample.y*light.v1;
-    const float3 L = normalize( jittered_pos - fhp );
+  prd_radiance.origin = front_hit_point;
+  prd_radiance.direction = w_in;
 
-    const float NdotL = dot( ffnormal, L);
-    if(NdotL > 0.0f) {
-        PerRayData_shadow shadow_prd;
-        shadow_prd.attenuation = make_float3( 1.0f );
-        optix::Ray shadow_ray ( fhp, L, /*shadow ray type*/ 1, 0.0f );
-        rtTrace(top_object, shadow_ray, shadow_prd);
+  prd_radiance.attenuation *= Kd * make_float3( geometry_color ) * transmittance;
 
-        const float solid_angle = light.radius*light.radius*M_PIf;
-       
-        float3 contribution = NdotL * light.color * solid_angle * shadow_prd.attenuation;
-        prd_radiance.radiance += contribution * exp(-sigma_a * atmosphere);
-    }
-    
+  // Add direct light sample weighted by shadow term and 1/probability.
+  // The pdf for a directional area light is 1/solid_angle.
 
+  const DirectionalLight& light = light_buffer[0];
+  float3 total = make_float3(0.0f);
+
+  int NUM = 100;
+  float delta = dist / NUM;
+  for(int i = 1; i <= NUM; i++) {
+      float3 pt = ray.origin + dir * (i * delta);
+      total += shadow_and_light(pt, ffnormal, light);
+  }
+  prd_radiance.radiance += (total);
 }
 

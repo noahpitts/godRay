@@ -97,9 +97,9 @@ rtBuffer<DirectionalLight> light_buffer;
 
 RT_PROGRAM void miss()
 {
-  const DirectionalLight& light = light_buffer[0];
-  const float solid_angle = light.radius * light.radius * M_PIf;
-  float3 below_horizon = light.color * solid_angle;
+  //const DirectionalLight& light = light_buffer[0];
+  //const float solid_angle = light.radius * light.radius * M_PIf;
+  float3 below_horizon = make_float3(0.0f); //light.color * solid_angle;
 
   const bool show_sun = (prd_radiance.depth == 0);
   prd_radiance.radiance = ray.direction.y <= 0.0f ? below_horizon : querySkyModel( show_sun, ray.direction );
