@@ -37,6 +37,8 @@ __inline__ __device__ float2 samplePixel_jitter(unsigned int *seed)
 // -----------------------------
 // CAMERA RAY FUNCTIONS
 // -----------------------------
+
+// Pinhole Camera
 __inline__ __device__ void genPinholeCameraRay(float3* o, float3* d, float2 sample_pt)
 {
     *o = eye;
@@ -71,10 +73,6 @@ RT_PROGRAM void pinhole_camera()
   float3 ray_origin; 
   float3 ray_dir;
   genPinholeCameraRay(&ray_origin, &ray_dir, xy);
-
-
-  //float3 ray_origin = eye;
-  //float3 ray_direction = normalize(d.x * U + d.y * V + W);
 
 
 

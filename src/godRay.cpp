@@ -40,16 +40,19 @@ const char *const SAMPLE_NAME = "godRay";
 const unsigned int WIDTH = 768u;
 const unsigned int HEIGHT = 576u;
 
-// FOR PARAMS
-const float DEFAULT_SIGMA_A = 0.05f; // Attenuation parameter
-const float DEFAULT_ATMOSPHERE = 50.0f; // Atmosphere parameter
-
 // SUN/SKY
 const float PHYSICAL_SUN_RADIUS = 0.004675f; // from Wikipedia
 const float DEFAULT_SUN_RADIUS = 0.05f;      // Softer default to show off soft shadows
 const float DEFAULT_SUN_THETA = 1.1f;
 const float DEFAULT_SUN_PHI = 300.0f * M_PIf / 180.0f;
 const float DEFAULT_OVERCAST = 0.3f;
+
+// ATMOSPHERE
+const float DEFAULT_SIGMA_A = 0.05f; // Attenuation parameter
+const float DEFAULT_ATMOSPHERE = 50.0f; // Atmosphere parameter
+
+// CAMERA
+const float DEFAULT_APERTURE = 1 / 8.0f;
 
 // GLASS
 const float3 DEFAULT_TRANSMITTANCE = make_float3(0.1f, 0.63f, 0.3f);
@@ -428,13 +431,20 @@ void glfwRun(GLFWwindow *window, sutil::Camera &camera, sutil::PreethamSunSky &s
 
     unsigned int frame_count = 0;
     unsigned int accumulation_frame = 0;
+
+    // Sun and Sky
     float sun_phi = sky.getSunPhi();
     float sun_theta = 0.5f * M_PIf - sky.getSunTheta();
     float sun_radius = DEFAULT_SUN_RADIUS;
     float overcast = DEFAULT_OVERCAST;
 
+    // Atmosphere
     float sigma_a = DEFAULT_SIGMA_A;
     float atmos = DEFAULT_ATMOSPHERE;
+
+    // Camera
+    float aper = DEFAULT_APERTURE;
+
 
     // Expose user data for access in GLFW callback functions when the window is resized, etc.
     // This avoids having to make it global.
@@ -465,78 +475,106 @@ void glfwRun(GLFWwindow *window, sutil::Camera &camera, sutil::PreethamSunSky &s
 
         // imgui pushes
         ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(0, 0));
-        ImGui::PushStyleVar(ImGuiStyleVar_Alpha, 0.6f);
+        ImGui::PushStyleVar(ImGuiStyleVar_Alpha, 0.8f);
         ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 2.0f);
+
+        // Title Bar Colors
+        ImGui::PushStyleColor(ImGuiCol_TitleBg, ImColor(30, 150, 250, 200));
+        ImGui::PushStyleColor(ImGuiCol_TitleBgCollapsed, ImColor(60, 60, 60, 150));
+        ImGui::PushStyleColor(ImGuiCol_TitleBgActive, ImColor(30, 150, 250, 200));
+
+        // Title Bar Colors
+        ImGui::PushStyleColor(ImGuiCol_Header, ImColor(60, 60, 60, 150));
+        ImGui::PushStyleColor(ImGuiCol_HeaderHovered, ImColor(150, 150, 150, 150));
+        ImGui::PushStyleColor(ImGuiCol_HeaderActive, ImColor(30, 150, 250, 200));
 
         sutil::displayFps(frame_count++);
 
         {
             static const ImGuiWindowFlags window_flags =
-                ImGuiWindowFlags_NoTitleBar |
                 ImGuiWindowFlags_AlwaysAutoResize |
                 ImGuiWindowFlags_NoMove |
                 ImGuiWindowFlags_NoScrollbar;
 
+            static const ImGuiWindowFlags header_flags =
+                ImGuiTreeNodeFlags_OpenOnDoubleClick |
+                ImGuiTreeNodeFlags_OpenOnArrow;
+
             ImGui::SetNextWindowPos(ImVec2(2.0f, 40.0f));
-            ImGui::Begin("controls", 0, window_flags);
+            ImGui::Begin("Controls", 0, window_flags);
 
-            bool sun_changed = false;
-            if (ImGui::SliderAngle("sun rotation", &sun_phi, 0.0f, 360.0f))
-            {
-                sky.setSunPhi(sun_phi);
-                sky.setVariables(context);
-                sun.direction = sky.getSunDir();
-                sun_changed = true;
+            // Sun and Sky Control
+            if (ImGui::CollapsingHeader(" Sun & Sky", header_flags)) {
+                bool sun_changed = false;
+                // Sun Rotation Control
+                if (ImGui::SliderAngle("sun rotation", &sun_phi, 0.0f, 360.0f))
+                {
+                    sky.setSunPhi(sun_phi);
+                    sky.setVariables(context);
+                    sun.direction = sky.getSunDir();
+                    sun_changed = true;
+                }
+                // Sun Elevation Control
+                if (ImGui::SliderAngle("sun elevation", &sun_theta, 0.0f, 90.0f))
+                {
+                    sky.setSunTheta(0.5f * M_PIf - sun_theta);
+                    sky.setVariables(context);
+                    sun.direction = sky.getSunDir();
+                    sun_changed = true;
+                }
+                // Sun Radius Control
+                if (ImGui::SliderFloat("sun radius", &sun_radius, PHYSICAL_SUN_RADIUS, 0.4f))
+                {
+                    sun.radius = sun_radius;
+                    sun_changed = true;
+                }
+                // Overcast Sky Control
+                if (ImGui::SliderFloat("overcast", &overcast, 0.0f, 1.0f))
+                {
+                    sky.setOvercast(overcast);
+                    sky.setVariables(context);
+                    sun_changed = true;
+                }
+                if (sun_changed)
+                {
+                    // recalculate frame for area sampling
+                    optix::Onb onb(sun.direction);
+                    sun.v0 = onb.m_tangent;
+                    sun.v1 = onb.m_binormal;
+                    // keep total sun energy constant and realistic if we increase area.
+                    const float sqrt_sun_scale = PHYSICAL_SUN_RADIUS / sun_radius;
+                    sun.color = sky.sunColor() * sqrt_sun_scale * sqrt_sun_scale;
+                    memcpy(light_buffer->map(), &sun, sizeof(DirectionalLight));
+                    light_buffer->unmap();
+                    accumulation_frame = 0;
+                }
             }
-            if (ImGui::SliderAngle("sun elevation", &sun_theta, 0.0f, 90.0f))
-            {
-                sky.setSunTheta(0.5f * M_PIf - sun_theta);
-                sky.setVariables(context);
-                sun.direction = sky.getSunDir();
-                sun_changed = true;
+            // Atmosphere Control
+            if (ImGui::CollapsingHeader(" Atmosphere", header_flags)) {
+                if (ImGui::SliderFloat("attenuation", &sigma_a, 0.0f, 1.0f))
+                {
+                    context["sigma_a"]->setFloat(sigma_a);
+                    accumulation_frame = 0;
+                }
+                if (ImGui::SliderFloat("depth", &atmos, 0.0f, 100.0f))
+                {
+                    context["atmosphere"]->setFloat(atmos);
+                    accumulation_frame = 0;
+                }
             }
-            if (ImGui::SliderFloat("sun radius", &sun_radius, PHYSICAL_SUN_RADIUS, 0.4f))
-            {
-                sun.radius = sun_radius;
-                sun_changed = true;
+            if (ImGui::CollapsingHeader(" Camera", header_flags)) {
+                if (ImGui::SliderFloat("aperature", &aper, 0.0f, 1.0f))
+                {
+                    context["sigma_a"]->setFloat(sigma_a);
+                    accumulation_frame = 0;
+                }
             }
-            if (ImGui::SliderFloat("overcast", &overcast, 0.0f, 1.0f))
-            {
-                sky.setOvercast(overcast);
-                sky.setVariables(context);
-                sun_changed = true;
-            }
-            if (ImGui::SliderFloat("attenuation", &sigma_a, 0.0f, 1.0f))
-            {
-                // TODO
-                context["sigma_a"]->setFloat(sigma_a);
-                sun_changed = true;
-            }
-            if (ImGui::SliderFloat("atmosphere", &atmos, 0.0f, 100.0f))
-            {
-                // TODO
-                context["atmosphere"]->setFloat(atmos);
-                sun_changed = true;
-            }
-            if (sun_changed)
-            {
-                // recalculate frame for area sampling
-                optix::Onb onb(sun.direction);
-                sun.v0 = onb.m_tangent;
-                sun.v1 = onb.m_binormal;
-                // keep total sun energy constant and realistic if we increase area.
-                const float sqrt_sun_scale = PHYSICAL_SUN_RADIUS / sun_radius;
-                sun.color = sky.sunColor() * sqrt_sun_scale * sqrt_sun_scale;
-                memcpy(light_buffer->map(), &sun, sizeof(DirectionalLight));
-                light_buffer->unmap();
-                accumulation_frame = 0;
-            }
-
             ImGui::End();
         }
 
         // imgui pops
         ImGui::PopStyleVar(3);
+        ImGui::PopStyleColor(6);
 
         // Render main window
         context["frame"]->setUint(accumulation_frame++);
