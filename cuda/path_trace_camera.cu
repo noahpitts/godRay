@@ -25,18 +25,23 @@ rtDeclareVariable(uint2, launch_index, rtLaunchIndex, );
 // ------------------------
 
 // Subpixel jitter: send the ray through a different position inside the pixel each time
-__inline__ __device__ float2 samplePixel_jitter(unsigned int *seed, size_t2 screen, uint2 index, unsigned int f)
+__inline__ __device__ float2 samplePixel_jitter(unsigned int *seed)
 {
-  *seed = tea<16>(screen.x * index.y + index.x, f);
-  float2 subpixel_jitter = f == 0 ? make_float2(0.0f) : make_float2(rnd(*seed) - 0.5f, rnd(*seed) - 0.5f);
+  size_t2 screen = output_buffer.size();
+  *seed = tea<16>(screen.x * launch_index.y + launch_index.x, frame);
+  float2 subpixel_jitter = frame == 0 ? make_float2(0.0f) : make_float2(rnd(*seed) - 0.5f, rnd(*seed) - 0.5f);
 
-  return (make_float2(index) + subpixel_jitter) / make_float2(screen) * 2.f - 1.f;
+  return (make_float2(launch_index) + subpixel_jitter) / make_float2(screen) * 2.f - 1.f;
 }
 
 // -----------------------------
-// GENERATE CAMERA RAY FUNCTIONS
+// CAMERA RAY FUNCTIONS
 // -----------------------------
-// __inline__ __device__
+__inline__ __device__ void genPinholeCameraRay(float3* o, float3* d, float2 sample_pt)
+{
+    *o = eye;
+    *d = normalize(sample_pt.x * U + sample_pt.y * V + W);
+}
 
 // ----------------------
 // TONE MAPPING FUNCTIONS
@@ -60,14 +65,19 @@ RT_PROGRAM void pinhole_camera()
   unsigned int seed;
 
   // sample the pixel
-  float2 d = samplePixel_jitter(&seed, output_buffer.size(), launch_index, frame);
+  float2 xy = samplePixel_jitter(&seed);
+
+  // generate a pinhole camera ray
+  float3 ray_origin; 
+  float3 ray_dir;
+  genPinholeCameraRay(&ray_origin, &ray_dir, xy);
+
+
+  //float3 ray_origin = eye;
+  //float3 ray_direction = normalize(d.x * U + d.y * V + W);
 
 
 
-
-
-  float3 ray_origin = eye;
-  float3 ray_direction = normalize(d.x * U + d.y * V + W);
 
   PerRayData_radiance prd;
   prd.depth = 0;
@@ -93,7 +103,7 @@ RT_PROGRAM void pinhole_camera()
   // in closest hit programs.
   for (;;)
   {
-    optix::Ray ray(ray_origin, ray_direction, /*ray type*/ 0, scene_epsilon);
+    optix::Ray ray(ray_origin, ray_dir, /*ray type*/ 0, scene_epsilon);
     rtTrace(top_object, ray, prd);
 
     result += prd.attenuation * prd.radiance;
@@ -112,7 +122,7 @@ RT_PROGRAM void pinhole_camera()
 
     // Update ray data for the next path segment
     ray_origin = prd.origin;
-    ray_direction = prd.direction;
+    ray_dir = prd.direction;
   }
 
   float4 acc_val = accum_buffer[launch_index];
