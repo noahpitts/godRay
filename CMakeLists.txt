@@ -41,6 +41,8 @@ OPTIX_add_sample_executable( godRay
     cuda/triangle_mesh.cu
     cuda/medium.cu
     cuda/diffuse.cu
+    cuda/diffuse_copy.cu
+    cuda/glass.cu
     cuda/parallelogram_iterative.cu
 
 
