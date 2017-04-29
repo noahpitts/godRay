@@ -35,8 +35,8 @@ rtDeclareVariable(float,    overcast, , );
 rtDeclareVariable(optix::float3,   sun_direction, , );
 rtDeclareVariable(optix::float3,   sun_color, , );
 rtDeclareVariable(optix::float3,   sky_up, , );
-rtDeclareVariable(float, atmosphere, , );
-rtDeclareVariable(float, sigma_a, , );
+rtDeclareVariable(float, atmos_dist, , );
+rtDeclareVariable(optix::float3, atmos_sigma_t, , );
 
 rtDeclareVariable(optix::float3, inv_divisor_Yxy, ,);
 rtDeclareVariable(optix::float3, c0, ,);
@@ -100,6 +100,6 @@ RT_PROGRAM void miss()
     prd_radiance.done = true;
 
     // beta from the atmosphere
-    prd_radiance.beta *= exp(-sigma_a * atmosphere);
+    prd_radiance.beta *= expf(-atmos_sigma_t * atmos_dist);
 }
 

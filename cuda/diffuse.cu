@@ -22,7 +22,7 @@ rtDeclareVariable(rtObject,      top_object, , );
 
 rtDeclareVariable(float3, atmos_sigma_t, , );
 rtDeclareVariable(float3, atmos_sigma_s, , );
-rtDeclareVariable(float3, atmos_g, , );
+rtDeclareVariable(float, atmos_g, , );
 
 
 
@@ -89,7 +89,7 @@ __inline__ __device__ float hg_sample_phase(float u, float v, float g, float3 w_
 }
 
 // Sample the SunLight
-__inline__ __device__ float3 sample_sunLight(DirectionalLight& sunlight, float3 isect)
+__inline__ __device__ float3 sample_sunLight(const DirectionalLight& sunlight, float3 isect)
 {
     const float3 sun_center = isect + sunlight.direction;
     const float2 disk_sample = square_to_disk(make_float2(rnd(prd_radiance.seed), rnd(prd_radiance.seed)));
@@ -105,10 +105,10 @@ __inline__ __device__ float3 visible_transmittance(float3 isect)
 }
 
 // Estimate of direct Lighting contribution
-__inline__ __device__ float3 estimate_direct_sunlight(float3 isect, bool surface, float3 surf_normal)
+__inline__ __device__ float3 estimate_direct_sunlight(float3 isect, bool surface, float3 ff_normal)
 {
     // Sunlight will always be the first light in the buffer
-    DirectionalLight& sunlight = light_buffer[0]; 
+    const DirectionalLight& sunlight = light_buffer[0]; 
     float3 Ld = make_float3(0.0f);
 
     // Sample Light Source with multiple importance sampling | pbrt 858
@@ -124,7 +124,7 @@ __inline__ __device__ float3 estimate_direct_sunlight(float3 isect, bool surface
         if (surface) 
         {
             // BSDF - Lambertian // EDIT THIE FOR OTHER SURFACE BSDFs
-            const float NdotL = dot(ffnormal, wi);
+            const float NdotL = dot(ff_normal, wi); // wo = ffnormal
             f = (Kd * make_float3(geometry_color) / M_PIf) * abs(NdotL); //  pbrt 532 & 575
             scattering_pdf = NdotL > 0.0f ? abs(NdotL) / M_PIf : 0.0f; // pbrt 807
         }
@@ -203,7 +203,7 @@ RT_PROGRAM void closest_hit_radiance()
         prd_radiance.direction = w_in;
 
         // Sample Direct Lighting
-        float3 sun_dir = sample_sunLight(prd_radiance.origin);
+        prd_radiance.radiance += estimate_direct_sunlight(prd_radiance.origin, false, prd_radiance.direction) / (2.0f * M_PIf);
 
     }
     else {
@@ -211,7 +211,7 @@ RT_PROGRAM void closest_hit_radiance()
         // -------------------------------------------
 
         // Compute the transmittance and sampleing density | pbrt 894
-        float3 transmittance = exp(-atmos_sigma_t * intersection_dist);
+        float3 transmittance = expf(-atmos_sigma_t * intersection_dist);
         float atmos_pdf = (transmittance.x + transmittance.y + transmittance.z) / 3.0f;
 
         // Return weighting factor for scattering from surface and atmosphere | pbrt 894
@@ -235,7 +235,7 @@ RT_PROGRAM void closest_hit_radiance()
         prd_radiance.direction = w_in;
 
         // Sample Direct Lighting
-        float3 sun_dir = sample_sunLight(fhp);
+
 
     }
 
@@ -254,18 +254,18 @@ RT_PROGRAM void closest_hit_radiance()
     //const float3 jittered_pos = light_center + light.radius*disk_sample.x*light.v0 + light.radius*disk_sample.y*light.v1;
     //const float3 L = normalize( jittered_pos - fhp );
 
-    const float NdotL = dot( ffnormal, L);
-    if(NdotL > 0.0f) {
-        PerRayData_shadow shadow_prd;
-        shadow_prd.beta = make_float3( 1.0f );
-        optix::Ray shadow_ray ( fhp, L, /*shadow ray type*/ 1, 0.0f );
-        rtTrace(top_object, shadow_ray, shadow_prd);
+    //const float NdotL = dot( ffnormal, L);
+    //if(NdotL > 0.0f) {
+    //    PerRayData_shadow shadow_prd;
+    //    shadow_prd.beta = make_float3( 1.0f );
+    //    optix::Ray shadow_ray ( fhp, L, /*shadow ray type*/ 1, 0.0f );
+    //    rtTrace(top_object, shadow_ray, shadow_prd);
 
-        const float solid_angle = light.radius*light.radius*M_PIf;
-       
-        float3 contribution = NdotL * light.color * solid_angle * shadow_prd.beta;
-        prd_radiance.radiance += contribution * exp(-sigma_a * atmosphere);
-    }
+    //    const float solid_angle = light.radius*light.radius*M_PIf;
+    //   
+    //    float3 contribution = NdotL * light.color * solid_angle * shadow_prd.beta;
+    //    prd_radiance.radiance += contribution * exp(-sigma_a * atmosphere);
+    //}
     
 
 }

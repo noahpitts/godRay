@@ -117,8 +117,10 @@ void createContext(bool use_pbo)
     context["max_depth"]->setInt(DEFAULT_MAXDEPTH);
 
     // Set Gloabal Atmosphere Parameters
-    context["sigma_a"]->setFloat(DEFAULT_SIGMA_A);
-    context["atmosphere"]->setFloat(DEFAULT_ATMOSPHERE);
+    context["atmos_sigma_t"]->setFloat(make_float3(DEFAULT_SIGMA_A));
+    context["atmos_sigma_s"]->setFloat(make_float3(DEFAULT_SIGMA_A));
+    context["atmos_g"]->setFloat(0.5f);
+    context["atmos_dist"]->setFloat(DEFAULT_ATMOSPHERE);
 
     // Set Global Camera Paramters
     context["aper"]->setFloat(DEFAULT_APERTURE);
@@ -448,7 +450,7 @@ void glfwRun(GLFWwindow *window, sutil::Camera &camera, sutil::PreethamSunSky &s
     float overcast = DEFAULT_OVERCAST;
 
     // Atmosphere
-    float sigma_a = DEFAULT_SIGMA_A;
+    float sigma_t = DEFAULT_SIGMA_A;
     float atmos = DEFAULT_ATMOSPHERE;
 
     // Camera
@@ -556,14 +558,14 @@ void glfwRun(GLFWwindow *window, sutil::Camera &camera, sutil::PreethamSunSky &s
             }
             // Atmosphere Control
             if (ImGui::CollapsingHeader(" Atmosphere", header_flags)) {
-                if (ImGui::SliderFloat("attenuation", &sigma_a, 0.0f, 1.0f))
+                if (ImGui::SliderFloat("attenuation", &sigma_t, 0.0f, 100.0f))
                 {
-                    context["sigma_a"]->setFloat(sigma_a);
+                    context["atmos_sigma_t"]->setFloat(make_float3(sigma_t));
                     accumulation_frame = 0;
                 }
                 if (ImGui::SliderFloat("depth", &atmos, 0.0f, 100.0f))
                 {
-                    context["atmosphere"]->setFloat(atmos);
+                    context["atmos_dist"]->setFloat(atmos);
                     accumulation_frame = 0;
                 }
             }

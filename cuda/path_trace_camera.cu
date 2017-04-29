@@ -160,8 +160,8 @@ RT_PROGRAM void render_pixel()
   {
     acc_val = make_float4(L, 0.f);
   }
-  // output_buffer[launch_index] = make_color( tonemap( make_float3( acc_val ) ) );
-  output_buffer[launch_index] = make_color(make_float3(acc_val));
+  output_buffer[launch_index] = make_color( tonemap( make_float3( acc_val ) ) );
+  // output_buffer[launch_index] = make_color(make_float3(acc_val));
   accum_buffer[launch_index] = acc_val;
 }
 
