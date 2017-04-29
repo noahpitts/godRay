@@ -32,13 +32,16 @@
 
 struct PerRayData_radiance
 {
-  int depth;
+  
   unsigned int seed;
 
   // shading state
   bool done;
-  float3 attenuation;
+  float3 beta;
   float3 radiance;
+
+  // next ray for path tracing
+  int depth;
   float3 origin;
   float3 direction;
 
@@ -46,7 +49,8 @@ struct PerRayData_radiance
 
 struct PerRayData_shadow
 {
-    float3 attenuation;
+    float3 beta;
+    bool blocked;
 };
 
 

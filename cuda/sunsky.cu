@@ -99,7 +99,7 @@ RT_PROGRAM void miss()
     prd_radiance.radiance = ray.direction.y <= 0.0f ? make_float3( 0.0f ) : querySkyModel( show_sun, ray.direction );
     prd_radiance.done = true;
 
-    // attenuation from the atmosphere
-    prd_radiance.attenuation *= exp(-sigma_a * atmosphere);
+    // beta from the atmosphere
+    prd_radiance.beta *= exp(-sigma_a * atmosphere);
 }
 

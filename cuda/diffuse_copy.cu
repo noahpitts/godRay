@@ -53,7 +53,7 @@ rtBuffer<DirectionalLight> light_buffer;
 
 RT_PROGRAM void any_hit_shadow()
 {
-    prd_shadow.attenuation = make_float3( 0.0f );
+    prd_shadow.beta = make_float3( 0.0f );
     rtTerminateRay();
 }
 
@@ -82,7 +82,7 @@ RT_PROGRAM void closest_hit_radiance()
     prd_radiance.origin = front_hit_point;
     prd_radiance.direction = w_in;
     
-    prd_radiance.attenuation *= Kd * make_float3( geometry_color ) * transmittance;
+    prd_radiance.beta *= Kd * make_float3( geometry_color ) * transmittance;
 
     // Add direct light sample weighted by shadow term and 1/probability.
     // The pdf for a directional area light is 1/solid_angle.
@@ -98,13 +98,13 @@ RT_PROGRAM void closest_hit_radiance()
     const float NdotL = dot( ffnormal, L);
     if(NdotL > 0.0f) {
         PerRayData_shadow shadow_prd;
-        shadow_prd.attenuation = make_float3( 1.0f );
+        shadow_prd.beta = make_float3( 1.0f );
         optix::Ray shadow_ray ( fhp, L, /*shadow ray type*/ 1, 0.0f );
         rtTrace(top_object, shadow_ray, shadow_prd);
 
         const float solid_angle = light.radius*light.radius*M_PIf;
        
-        float3 contribution = NdotL * light.color * solid_angle * shadow_prd.attenuation;
+        float3 contribution = NdotL * light.color * solid_angle * shadow_prd.beta;
         prd_radiance.radiance += contribution * exp(-sigma_a * atmosphere);
     }
     

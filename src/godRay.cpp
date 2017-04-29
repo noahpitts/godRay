@@ -54,6 +54,9 @@ const float DEFAULT_ATMOSPHERE = 50.0f; // Atmosphere parameter
 // CAMERA
 const float DEFAULT_APERTURE = 1 / 8.0f;
 
+// RENDERER
+const int DEFAULT_MAXDEPTH = 10;
+
 // GLASS
 const float3 DEFAULT_TRANSMITTANCE = make_float3(0.1f, 0.63f, 0.3f);
 
@@ -103,16 +106,22 @@ void createContext(bool use_pbo)
     context->setEntryPointCount(1);
     context->setStackSize(600);     // TODO: debug for optimal stack size
 
-    context["max_depth"]->setInt(10);
+    
     context["cutoff_color"]->setFloat(0.2f, 0.2f, 0.2f);
     context["frame"]->setUint(0u);
     context["scene_epsilon"]->setFloat(1.e-3f);
     context->setPrintEnabled(true);
     context->setPrintBufferSize(1024);
 
-    // Global Fog Parameters
+    // Set Gloabel Renderer Parameters
+    context["max_depth"]->setInt(DEFAULT_MAXDEPTH);
+
+    // Set Gloabal Atmosphere Parameters
     context["sigma_a"]->setFloat(DEFAULT_SIGMA_A);
     context["atmosphere"]->setFloat(DEFAULT_ATMOSPHERE);
+
+    // Set Global Camera Paramters
+    context["aper"]->setFloat(DEFAULT_APERTURE);
 
     Buffer buffer = sutil::createOutputBuffer(context, RT_FORMAT_UNSIGNED_BYTE4, WIDTH, HEIGHT, use_pbo);
     context["output_buffer"]->set(buffer);
@@ -124,7 +133,7 @@ void createContext(bool use_pbo)
 
     // Ray generation program
     std::string ptx_path(ptxPath("path_trace_camera.cu"));
-    Program ray_gen_program = context->createProgramFromPTXFile(ptx_path, "pinhole_camera");
+    Program ray_gen_program = context->createProgramFromPTXFile(ptx_path, "render_pixel");
     context->setRayGenerationProgram(0, ray_gen_program);
 
     // Exception program
@@ -445,6 +454,8 @@ void glfwRun(GLFWwindow *window, sutil::Camera &camera, sutil::PreethamSunSky &s
     // Camera
     float aper = DEFAULT_APERTURE;
 
+    // Renderer
+    int max_depth = DEFAULT_MAXDEPTH;
 
     // Expose user data for access in GLFW callback functions when the window is resized, etc.
     // This avoids having to make it global.
@@ -453,20 +464,14 @@ void glfwRun(GLFWwindow *window, sutil::Camera &camera, sutil::PreethamSunSky &s
 
     while (!glfwWindowShouldClose(window))
     {
-
         glfwPollEvents();
-
         ImGui_ImplGlfw_NewFrame();
-
         ImGuiIO &io = ImGui::GetIO();
-
         // Let imgui process the mouse first
         if (!io.WantCaptureMouse)
         {
-
             double x, y;
             glfwGetCursorPos(window, &x, &y);
-
             if (camera.process_mouse((float)x, (float)y, ImGui::IsMouseDown(0), ImGui::IsMouseDown(1), ImGui::IsMouseDown(2)))
             {
                 accumulation_frame = 0;
@@ -562,10 +567,18 @@ void glfwRun(GLFWwindow *window, sutil::Camera &camera, sutil::PreethamSunSky &s
                     accumulation_frame = 0;
                 }
             }
+            // Camera Control
             if (ImGui::CollapsingHeader(" Camera", header_flags)) {
-                if (ImGui::SliderFloat("aperature", &aper, 0.0f, 1.0f))
+                if (ImGui::SliderFloat("aperature", &aper, 0.0f, 0.5f)) //TODO: find a better representation for the aperature scale
                 {
-                    context["sigma_a"]->setFloat(sigma_a);
+                    context["aper"]->setFloat(aper);
+                    accumulation_frame = 0;
+                }
+            }
+            // Renderer Control
+            if (ImGui::CollapsingHeader(" Renderer", header_flags)) {
+                if (ImGui::SliderInt("max depth", &max_depth, 1, 25)) {
+                    context["max_depth"]->setInt(max_depth);
                     accumulation_frame = 0;
                 }
             }

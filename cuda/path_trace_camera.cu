@@ -39,10 +39,79 @@ __inline__ __device__ float2 samplePixel_jitter(unsigned int *seed)
 // -----------------------------
 
 // Pinhole Camera
-__inline__ __device__ void genPinholeCameraRay(float3* o, float3* d, float2 sample_pt)
+__inline__ __device__ float genPinholeCameraRay(float3* o, float3* d, float2 sample_pt)
 {
     *o = eye;
     *d = normalize(sample_pt.x * U + sample_pt.y * V + W);
+    return 1.0f;
+}
+
+// ThinLens Camera - TODO
+
+// ---------------------------
+// INTEGRATOR FUNCTIONS
+// ---------------------------
+
+// Iterative Pathtracer
+__inline__ __device__ float3 Li_pathtrace(float3* ray_origin, float3* ray_dir, unsigned int seed)
+{
+    // Initialize per ray data structure
+    PerRayData_radiance prd;
+    prd.depth = 0;
+    prd.seed = seed;
+    prd.done = false;
+
+    int min_depth = 3;
+
+    
+    prd.beta = make_float3(1.0f);
+    prd.radiance = make_float3(0.0f); // light from a light source or miss program
+
+    // next ray to be traced
+    prd.origin = make_float3(0.0f);
+    prd.direction = make_float3(0.0f);
+
+    float3 L = make_float3(0.0f);
+
+    // pathtrace loop. 
+    for (;;)
+    {
+        // intersect ray with scene and store intersection radiance and attenuation(beta)
+        optix::Ray ray(*ray_origin, *ray_dir, /*ray type*/ 0, scene_epsilon);
+        rtTrace(top_object, ray, prd);
+
+        L += prd.beta * prd.radiance;
+
+        // terminate path if no more contribution
+        if (prd.beta.x <= 0.001f && prd.beta.y <= 0.001f && prd.beta.z <= 0.001f) prd.done = true;
+        if (prd.done)
+        {
+            break;
+        }
+        // terminate path if max depth was reached
+        else if (prd.depth >= max_depth)
+        {
+            L += prd.beta * cutoff_color;
+            break;
+        }
+        // russian roulette termination | pbrt 879
+        if (prd.depth > min_depth)
+        {
+            float q = 1.0f - prd.beta.y;
+            if (q < 0.05f) q = 0.05f;
+            if (rnd(prd.seed) < q)
+                break;
+            prd.beta /= 1.0f - q;
+        }
+
+        prd.depth++;
+
+        // Update ray data for the next path segment
+        *ray_origin = prd.origin;
+        *ray_dir = prd.direction;
+    }
+
+    return L;
 }
 
 // ----------------------
@@ -61,76 +130,35 @@ __inline__ __device__ float3 tonemap(const float3 in)
   return ret;
 }
 
-RT_PROGRAM void pinhole_camera()
+RT_PROGRAM void render_pixel()
 {
   // seed for random num generator
   unsigned int seed;
 
-  // sample the pixel
-  float2 xy = samplePixel_jitter(&seed);
+  // Initialize camera sample for current sample | pbrt 30
+  float2 cameraSample = samplePixel_jitter(&seed);
 
-  // generate a pinhole camera ray
+  // Generate Camera Ray for current Sample | pbrt 31
   float3 ray_origin; 
   float3 ray_dir;
-  genPinholeCameraRay(&ray_origin, &ray_dir, xy);
+  float ray_weight = genPinholeCameraRay(&ray_origin, &ray_dir, cameraSample); // ray_weight is used for vignetting
+
+  // Evaluate Radiance along Camera Ray | pbrt 31
+  float3 L = make_float3(0.0f);
+  if (ray_weight > 0.0f) 
+      L = Li_pathtrace(&ray_origin, &ray_dir, seed) * ray_weight;
 
 
-
-
-  PerRayData_radiance prd;
-  prd.depth = 0;
-  prd.seed = seed;
-  prd.done = false;
-
-  // These represent the current shading state and will be set by the closest-hit or miss program
-
-  // brdf attenuation from surface interaction
-  prd.attenuation = make_float3(1.0f);
-
-  // light from a light source or miss program
-  prd.radiance = make_float3(0.0f);
-
-  // next ray to be traced
-  prd.origin = make_float3(0.0f);
-  prd.direction = make_float3(0.0f);
-
-  float3 result = make_float3(0.0f);
-
-  // Main render loop. This is not recursive, and for high ray depths
-  // will generally perform better than tracing radiance rays recursively
-  // in closest hit programs.
-  for (;;)
-  {
-    optix::Ray ray(ray_origin, ray_dir, /*ray type*/ 0, scene_epsilon);
-    rtTrace(top_object, ray, prd);
-
-    result += prd.attenuation * prd.radiance;
-
-    if (prd.done)
-    {
-      break;
-    }
-    else if (prd.depth >= max_depth)
-    {
-      result += prd.attenuation * cutoff_color;
-      break;
-    }
-
-    prd.depth++;
-
-    // Update ray data for the next path segment
-    ray_origin = prd.origin;
-    ray_dir = prd.direction;
-  }
+  // ACCUMULATE AND OUTPUT TO IMAGE
 
   float4 acc_val = accum_buffer[launch_index];
   if (frame > 0)
   {
-    acc_val = lerp(acc_val, make_float4(result, 0.f), 1.0f / static_cast<float>(frame + 1));
+    acc_val = lerp(acc_val, make_float4(L, 0.f), 1.0f / static_cast<float>(frame + 1));
   }
   else
   {
-    acc_val = make_float4(result, 0.f);
+    acc_val = make_float4(L, 0.f);
   }
   // output_buffer[launch_index] = make_color( tonemap( make_float3( acc_val ) ) );
   output_buffer[launch_index] = make_color(make_float3(acc_val));
