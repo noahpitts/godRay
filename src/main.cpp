@@ -48,11 +48,11 @@ const float DEFAULT_SUN_PHI = 300.0f * M_PIf / 180.0f;
 const float DEFAULT_OVERCAST = 0.3f;
 
 // ATMOSPHERE
-const float DEFAULT_ATMOS_SIGMA_A = 0.05f; // Attenuation parameter
-const float DEFAULT_ATMOS_SIGMA_T = 0.05f; // Attenuation parameter
-const float DEFAULT_ATMOS_G       = 0.05f; // Attenuation parameter
-const float DEFAULT_ATMOS_DIST = 0.05f; // Attenuation parameter
-const float DEFAULT_ATMOSPHERE = 50.0f; // Atmosphere parameter
+const float DEFAULT_ATMOS_SIGMA_S = 0.05f; // In scattering parameter
+const float DEFAULT_ATMOS_SIGMA_T = 0.05f; // Extinction parameter
+const float DEFAULT_ATMOS_G       = 0.05f; // G parameter
+const float DEFAULT_ATMOS_DIST    = 0.05f; // Atmosphere distance parameter
+const float DEFAULT_ATMOSPHERE    = 50.0f; // Atmosphere parameter
 
 // CAMERA
 const float DEFAULT_APERTURE = 1 / 8.0f;
@@ -126,9 +126,9 @@ void createContext(bool use_pbo)
   context["max_depth"]->setInt(DEFAULT_MAXDEPTH);
 
   // Set Gloabal Atmosphere Parameters
-  context["atmos_sigma_t"]->setFloat(make_float3(DEFAULT_SIGMA_A));
-  context["atmos_sigma_s"]->setFloat(make_float3(DEFAULT_SIGMA_A));
-  context["atmos_g"]->setFloat(0.5f);
+  context["atmos_sigma_s"]->setFloat(make_float3(DEFAULT_ATMOS_SIGMA_S));
+  context["atmos_sigma_t"]->setFloat(make_float3(DEFAULT_ATMOS_SIGMA_T));
+  context["atmos_g"]->setFloat(DEFAULT_ATMOS_G);
   context["atmos_dist"]->setFloat(DEFAULT_ATMOSPHERE);
 
   // Set Global Camera Paramters
@@ -215,17 +215,17 @@ Geometry createBox(float3 boxMin, float3 boxMax) {
   return box;
 }
 
-Material createMediaMaterial(float sigma_a) {
-  Material matl = context->createMaterial();
-  Program ch = context->createProgramFromPTXFile( material_ptx, "media_hit_radiance" );
-  matl->setClosestHitProgram( RADIANCE, ch );
-
-  Program ah = context->createProgramFromPTXFile( material_ptx, "media_hit_shadow" );
-  matl->setClosestHitProgram( SHADOW, ah );
-
-  matl["sigma_a"]->setFloat(sigma_a);
-  return matl;
-}
+//Material createMediaMaterial(float sigma_a) {
+//  Material matl = context->createMaterial();
+//  Program ch = context->createProgramFromPTXFile( material_ptx, "media_hit_radiance" );
+//  matl->setClosestHitProgram( RADIANCE, ch );
+//
+//  Program ah = context->createProgramFromPTXFile( material_ptx, "media_hit_shadow" );
+//  matl->setClosestHitProgram( SHADOW, ah );
+//
+//  matl["sigma_a"]->setFloat(sigma_a);
+//  return matl;
+//}
 
 Material createPhongMaterial(float3 Ka, float3 Kd, float3 Ks, int phong_exp) {
   Material matl = context->createMaterial();
@@ -425,7 +425,10 @@ void glfwRun(GLFWwindow *window, sutil::Camera &camera, sutil::PreethamSunSky &s
   float overcast = DEFAULT_OVERCAST;
 
   // Atmosphere
-  float sigma_t = DEFAULT_SIGMA_A;
+  float atmos_sigma_s = DEFAULT_ATMOS_SIGMA_S;
+  float atmos_sigma_t = DEFAULT_ATMOS_SIGMA_T;
+  float atmos_dist = DEFAULT_ATMOS_DIST;
+  float atmos_g = DEFAULT_ATMOS_G;
   float atmos = DEFAULT_ATMOSPHERE;
 
   // Camera
@@ -533,14 +536,24 @@ void glfwRun(GLFWwindow *window, sutil::Camera &camera, sutil::PreethamSunSky &s
       }
       // Atmosphere Control
       if (ImGui::CollapsingHeader(" Atmosphere", header_flags)) {
-        if (ImGui::SliderFloat("attenuation", &sigma_t, 0.0f, 100.0f))
+        if (ImGui::SliderFloat("in scattering", &atmos_sigma_t, 0.0f, 1.0f))
         {
-          context["atmos_sigma_t"]->setFloat(make_float3(sigma_t));
+          context["atmos_sigma_s"]->setFloat(make_float3(atmos_sigma_s));
           accumulation_frame = 0;
         }
-        if (ImGui::SliderFloat("depth", &atmos, 0.0f, 100.0f))
+        if (ImGui::SliderFloat("extinction", &atmos_sigma_t, 0.0f, 100.0f))
         {
-          context["atmos_dist"]->setFloat(atmos);
+          context["atmos_sigma_t"]->setFloat(make_float3(atmos_sigma_t));
+          accumulation_frame = 0;
+        }
+        if (ImGui::SliderFloat("dist", &atmos, 0.0f, 100.0f))
+        {
+          context["atmos_dist"]->setFloat(atmos_dist);
+          accumulation_frame = 0;
+        }
+        if (ImGui::SliderFloat("g", &atmos, 0.0f, 100.0f))
+        {
+          context["atmos_g"]->setFloat(atmos_g);
           accumulation_frame = 0;
         }
       }
