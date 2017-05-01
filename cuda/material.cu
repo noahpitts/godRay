@@ -25,20 +25,24 @@ rtDeclareVariable(rtObject, top_object, , );
 rtDeclareVariable(float3,   Kd, , ); 
 rtBuffer<DirectionalLight> lightBuffer;
 
-rtDeclareVariable(float, sigma_a, , );
+rtDeclareVariable(float, atmos_sigma_t, , );
+rtDeclareVariable(float, atmos_sigma_s, , );
+rtDeclareVariable(float, atmos_g, , );
+rtDeclareVariable(float, atmos_dist, , );
 
-RT_PROGRAM void media_hit_radiance() // closest hit
-{
-}
-
-RT_PROGRAM void media_hit_shadow() // closest hit
-{
-}
 
 RT_PROGRAM void diffuse_hit_radiance() // closest hit
 {
 }
 
 RT_PROGRAM void diffuse_hit_shadow() // any hit
+{
+}
+
+RT_PROGRAM void media_hit_radiance() // closest hit
+{
+}
+
+RT_PROGRAM void media_hit_shadow() // closest hit
 {
 }
