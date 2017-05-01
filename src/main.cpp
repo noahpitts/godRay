@@ -18,6 +18,8 @@
 #include <optixu/optixu_aabb_namespace.h>
 #include <optixu/optixu_math_stream_namespace.h>
 
+#include <OptiXMesh.h>
+
 #include <sutil.h>
 #include <Camera.h>
 #include <SunSky.h>
@@ -183,35 +185,20 @@ void createLights(sutil::PreethamSunSky &sky, DirectionalLight &sun, Buffer &lig
   context["light_buffer"]->set(light_buffer);
 }
 
-Geometry createParallelogram(float3 anchor, float3 v1, float3 v2) {
-  Geometry parallelogram = context->createGeometry();
-  parallelogram->setPrimitiveCount( 1u );
-  parallelogram->setBoundingBoxProgram( context->createProgramFromPTXFile( geometry_ptx, "par_bounds" ) );
-  parallelogram->setIntersectionProgram( context->createProgramFromPTXFile( geometry_ptx, "par_intersect" ) );
-  float3 normal = cross( v2, v1 );
-  normal = normalize( normal );
-  float d = dot( normal, anchor );
-  v1 *= 1.0f/dot( v1, v1 );
-  v2 *= 1.0f/dot( v2, v2 );
-  float4 plane = make_float4( normal, d );
-  parallelogram["plane"]->setFloat( plane );
-  parallelogram["v1"]->setFloat( v1 );
-  parallelogram["v2"]->setFloat( v2 );
-  parallelogram["anchor"]->setFloat( anchor );
-  return parallelogram;
-}
-
-Geometry createBox(float3 boxMin, float3 boxMax) {
-  Program box_bounds    = context->createProgramFromPTXFile( geometry_ptx, "box_bounds" );
-  Program box_intersect = context->createProgramFromPTXFile( geometry_ptx, "box_intersect" );
-
+Geometry createBox(float3 boxmin, float3 boxmax)
+{
   Geometry box = context->createGeometry();
   box->setPrimitiveCount( 1u );
+
+  Program box_bounds = context->createProgramFromPTXFile( geometry_ptx, "box_bounds" );
+  Program box_intersect = context->createProgramFromPTXFile( geometry_ptx, "box_intersect" );
+
   box->setBoundingBoxProgram( box_bounds );
   box->setIntersectionProgram( box_intersect );
-  box["boxmin"]->setFloat( boxMin );
-  box["boxmax"]->setFloat( boxMax );
 
+  box["boxmin"]->setFloat( boxmin );
+  box["boxmax"]->setFloat( boxmax );
+  
   return box;
 }
 
@@ -227,7 +214,8 @@ Geometry createBox(float3 boxMin, float3 boxMax) {
 //  return matl;
 //}
 
-Material createPhongMaterial(float3 Ka, float3 Kd, float3 Ks, int phong_exp) {
+Material createPhongMaterial( float3 Kd )
+{
   Material matl = context->createMaterial();
 
   Program ch = context->createProgramFromPTXFile( material_ptx, "diffuse_hit_radiance" );
@@ -236,10 +224,7 @@ Material createPhongMaterial(float3 Ka, float3 Kd, float3 Ks, int phong_exp) {
   Program ah = context->createProgramFromPTXFile( material_ptx, "diffuse_hit_shadow" );
   matl->setAnyHitProgram( SHADOW, ah );
 
-  matl["Ka"]->setFloat( Ka );
   matl["Kd"]->setFloat( Kd );
-  matl["Ks"]->setFloat( Ks );
-  matl["phong_exp"]->setFloat( phong_exp );
   return matl;
 }
 
@@ -247,60 +232,19 @@ void createGeometry()
 {
   std::vector<GeometryInstance> gis;
 
-  Geometry floor = createParallelogram(
-      make_float3(-64.0f, 0.01f, -64.0f),
-      make_float3(128.0f, 0.0f, 0.0f),
-      make_float3(0.0f, 0.0f, 128.0f)
-      );
-  Material floor_matl = createPhongMaterial(
-      make_float3(0.2f),
-      make_float3(0.8f),
-      make_float3(0.2f),
-      88
-      );
-  gis.push_back( context->createGeometryInstance( floor, &floor_matl, &floor_matl+1 ) );
-
-//  Geometry wall1 = createParallelogram(
-//      make_float3(64.0f, 0.01f, 64.0f),
-//      make_float3(-128.0f, 0.0f, 0.0f),
-//      make_float3(0.0f, 32.0f, 0.0f)
-//      );
-//  Material wall1_matl = createPhongMaterial(
-//      make_float3(0.2f),
-//      make_float3(1.0f),
-//      make_float3(0.2f),
-//      88
-//      );
-//  gis.push_back( context->createGeometryInstance( wall1, &wall1_matl, &wall1_matl+1 ) );
-//
-//  Geometry wall2 = createParallelogram(
-//      make_float3(64.0f, 0.01f, -64.0f),
-//      make_float3(0.0f, 0.0f, 128.0f),
-//      make_float3(0.0f, 32.0f, 0.0f)
-//      );
-//  Material wall2_matl = createPhongMaterial(
-//      make_float3(0.2f),
-//      make_float3(1.0f,0.5f,0.5f),
-//      make_float3(0.2f),
-//      88
-//      );
-//  gis.push_back( context->createGeometryInstance( wall2, &wall2_matl, &wall2_matl+1 ) );
-//
-//  Geometry wall3 = createParallelogram(
-//      make_float3(-64.0f, 0.01f, -64.0f),
-//      make_float3(0.0f, 0.0f, 128.0f),
-//      make_float3(0.0f, 32.0f, 0.0f)
-//      );
-//  Material wall3_matl = createPhongMaterial(
-//      make_float3(0.2f),
-//      make_float3(0.5f,0.5f,1.0f),
-//      make_float3(0.2f),
-//      88
-//      );
-//  gis.push_back( context->createGeometryInstance( wall3, &wall3_matl, &wall3_matl+1 ) );
-
   GeometryGroup geometry_group = context->createGeometryGroup();
   geometry_group->setAcceleration(context->createAcceleration("Trbvh"));
+
+  // Load mesh
+  OptiXMesh mesh;
+  mesh.context = context;
+  mesh.intersection = context->createProgramFromPTXFile( geometry_ptx, "mesh_intersect" );
+  mesh.bounds = context->createProgramFromPTXFile( geometry_ptx, "mesh_bounds" );
+  mesh.material = createPhongMaterial( make_float3(0.6f, 0.3f, 0.3f) );
+  Matrix4x4 xform = Matrix4x4::identity();
+ 
+  loadMesh( std::string( sutil::samplesDir() ) + "/godRay/model/obj/dome_simple.obj", mesh, xform );
+  gis.push_back(mesh.geom_instance);
 
   geometry_group->setChildCount( static_cast<unsigned int>(gis.size()) );
   for(int i = 0; i < gis.size(); ++i) geometry_group->setChild( i, gis[i] );
