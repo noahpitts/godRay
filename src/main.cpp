@@ -48,7 +48,10 @@ const float DEFAULT_SUN_PHI = 300.0f * M_PIf / 180.0f;
 const float DEFAULT_OVERCAST = 0.3f;
 
 // ATMOSPHERE
-const float DEFAULT_SIGMA_A = 0.05f; // Attenuation parameter
+const float DEFAULT_ATMOS_SIGMA_A = 0.05f; // Attenuation parameter
+const float DEFAULT_ATMOS_SIGMA_T = 0.05f; // Attenuation parameter
+const float DEFAULT_ATMOS_G       = 0.05f; // Attenuation parameter
+const float DEFAULT_ATMOS_DIST = 0.05f; // Attenuation parameter
 const float DEFAULT_ATMOSPHERE = 50.0f; // Atmosphere parameter
 
 // CAMERA
@@ -61,6 +64,7 @@ const int DEFAULT_MAXDEPTH = 10;
 enum RAY_TYPE {
   RADIANCE,
   SHADOW,
+  MEDIA,
   NUM_RAYS
 };
 
@@ -113,8 +117,6 @@ void createContext(bool use_pbo)
   context->setEntryPointCount(1);
   context->setStackSize(600);     // TODO: debug for optimal stack size
 
-
-  context["cutoff_color"]->setFloat(0.2f, 0.2f, 0.2f);
   context["frame"]->setUint(0u);
   context["scene_epsilon"]->setFloat(1.e-3f);
   context->setPrintEnabled(true);
