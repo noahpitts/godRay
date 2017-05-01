@@ -13,7 +13,6 @@ rtDeclareVariable(float3, V, , );
 rtDeclareVariable(float3, W, , );
 rtDeclareVariable(float3, bad_color, , );
 rtDeclareVariable(float, scene_epsilon, , );
-rtDeclareVariable(float3, cutoff_color, , );
 rtDeclareVariable(int, max_depth, , );
 rtBuffer<uchar4, 2> output_buffer;
 rtBuffer<float4, 2> accum_buffer;
@@ -69,7 +68,7 @@ __inline__ __device__ float genPinholeCameraRay(float3* o, float3* d, float2 sam
 // ---------------------------
 
 // Iterative Pathtracer
-__inline__ __device__ float3 Li_pathtrace(float3* ray_origin, float3* ray_dir, unsigned int seed)
+__inline__ __device__ float3 Li_pathtrace(float3 ray_origin, float3 ray_dir, unsigned int seed)
 {
   // Initialize per ray data structure
   PerRayData_radiance prd;
@@ -93,7 +92,7 @@ __inline__ __device__ float3 Li_pathtrace(float3* ray_origin, float3* ray_dir, u
   for (;;)
   {
     // intersect ray with scene and store intersection radiance and attenuation(beta)
-    optix::Ray ray(*ray_origin, *ray_dir, /*ray type*/ 0, scene_epsilon);
+    optix::Ray ray(ray_origin, ray_dir, /*ray type*/ 0, scene_epsilon);
     rtTrace(top_object, ray, prd);
 
     L += prd.beta * prd.radiance;
@@ -107,7 +106,7 @@ __inline__ __device__ float3 Li_pathtrace(float3* ray_origin, float3* ray_dir, u
     // terminate path if max depth was reached
     else if (prd.depth >= max_depth)
     {
-      L += prd.beta * cutoff_color;
+      //L += prd.beta * cutoff_color;
       break;
     }
     // russian roulette termination | pbrt 879
@@ -123,8 +122,8 @@ __inline__ __device__ float3 Li_pathtrace(float3* ray_origin, float3* ray_dir, u
     prd.depth++;
 
     // Update ray data for the next path segment
-    *ray_origin = prd.origin;
-    *ray_dir = prd.direction;
+    ray_origin = prd.origin;
+    ray_dir = prd.direction;
   }
 
   return L;
@@ -162,7 +161,7 @@ RT_PROGRAM void render_pixel()
   // Evaluate Radiance along Camera Ray | pbrt 31
   float3 L = make_float3(0.0f);
   if (ray_weight > 0.0f) 
-    L = Li_pathtrace(&ray_origin, &ray_dir, seed) * ray_weight;
+    L = Li_pathtrace(ray_origin, ray_dir, seed) * ray_weight;
 
 
   // ACCUMULATE AND OUTPUT TO IMAGE

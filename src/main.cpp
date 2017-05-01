@@ -64,9 +64,8 @@ const int DEFAULT_MAXDEPTH = 10;
 
 // Ray Types
 enum RAY_TYPE {
-  RADIANCE,
+  RADIANCE = 0,
   SHADOW,
-  MEDIA,
   NUM_RAYS
 };
 
@@ -234,21 +233,30 @@ void createGeometry()
 
   GeometryGroup geometry_group = context->createGeometryGroup();
   geometry_group->setAcceleration(context->createAcceleration("Trbvh"));
+  
+  Geometry med = createBox( make_float3(-2.0f), make_float3(2.0f) );
+  Material med_matl = createPhongMaterial( make_float3(0.99f) );
+  gis.push_back( context->createGeometryInstance( med, &med_matl, &med_matl+1 ) );
+
+  //GeometryGroup media_group = context->createGeometryGroup();
+  //media_group->setAcceleration(context->createAcceleration("None"));
 
   // Load mesh
-  OptiXMesh mesh;
-  mesh.context = context;
-  mesh.intersection = context->createProgramFromPTXFile( geometry_ptx, "mesh_intersect" );
-  mesh.bounds = context->createProgramFromPTXFile( geometry_ptx, "mesh_bounds" );
-  mesh.material = createPhongMaterial( make_float3(0.6f, 0.3f, 0.3f) );
-  Matrix4x4 xform = Matrix4x4::identity();
+  //OptiXMesh mesh;
+  //mesh.context = context;
+  //mesh.intersection = context->createProgramFromPTXFile( geometry_ptx, "mesh_intersect" );
+  //mesh.bounds = context->createProgramFromPTXFile( geometry_ptx, "mesh_bounds" );
+  //mesh.material = createPhongMaterial( make_float3(0.6f, 0.3f, 0.3f) );
+  //Matrix4x4 xform = Matrix4x4::identity();
  
-  loadMesh( std::string( sutil::samplesDir() ) + "/godRay/model/obj/dome_simple.obj", mesh, xform );
-  gis.push_back(mesh.geom_instance);
+  //loadMesh( std::string( sutil::samplesDir() ) + "/godRay/model/obj/dome_simple.obj", mesh, xform );
+  //gis.push_back(mesh.geom_instance);
 
   geometry_group->setChildCount( static_cast<unsigned int>(gis.size()) );
   for(int i = 0; i < gis.size(); ++i) geometry_group->setChild( i, gis[i] );
 
+  //context["top_media"]->set(geometry_group);
+  //context["top_geometry"]->set(geometry_group);
   context["top_object"]->set(geometry_group);
 }
 

@@ -19,8 +19,8 @@ rtDeclareVariable(float3, back_hit_point,   attribute back_hit_point, );
 rtDeclareVariable(float3, front_hit_point,  attribute front_hit_point, ); 
 
 rtDeclareVariable(float3, texcoord, attribute texcoord, ); 
-rtDeclareVariable(float3, geometric_normal, attribute geometric_normal, ); 
-rtDeclareVariable(float3, shading_normal, attribute shading_normal, ); 
+rtDeclareVariable(float3, object_geometric_normal, attribute object_geometric_normal, ); 
+rtDeclareVariable(float3, object_shading_normal, attribute object_shading_normal, ); 
 
 rtDeclareVariable(optix::Ray, ray, rtCurrentRay, );
 
@@ -46,14 +46,14 @@ RT_PROGRAM void box_intersect(int)
     bool check_second = true;
     if( rtPotentialIntersection( tmin ) ) {
        texcoord = make_float3( 0.0f );
-       shading_normal = geometric_normal = boxnormal( tmin );
+       object_shading_normal = object_geometric_normal = boxnormal( tmin );
        if(rtReportIntersection(0))
          check_second = false;
     } 
     if(check_second) {
       if( rtPotentialIntersection( tmax ) ) {
         texcoord = make_float3( 0.0f );
-        shading_normal = geometric_normal = boxnormal( tmax );
+        object_shading_normal = object_geometric_normal = boxnormal( tmax );
         rtReportIntersection(0);
       }
     }
@@ -83,14 +83,14 @@ void meshIntersect( int primIdx )
 
     if(  rtPotentialIntersection( t ) ) {
 
-      geometric_normal = normalize( n );
+      object_geometric_normal = normalize( n );
       if( normal_buffer.size() == 0 ) {
-        shading_normal = geometric_normal; 
+        object_shading_normal = object_geometric_normal; 
       } else {
         float3 n0 = normal_buffer[ v_idx.x ];
         float3 n1 = normal_buffer[ v_idx.y ];
         float3 n2 = normal_buffer[ v_idx.z ];
-        shading_normal = normalize( n1*beta + n2*gamma + n0*(1.0f-beta-gamma) );
+        object_shading_normal = normalize( n1*beta + n2*gamma + n0*(1.0f-beta-gamma) );
       }
 
       if( texcoord_buffer.size() == 0 ) {
@@ -106,7 +106,7 @@ void meshIntersect( int primIdx )
           refine_and_offset_hitpoint(
                   ray.origin + t*ray.direction,
                   ray.direction,
-                  geometric_normal,
+                  object_geometric_normal,
                   p0,
                   back_hit_point,
                   front_hit_point );
