@@ -23,8 +23,13 @@ struct PerRayData_radiance
 
 struct PerRayData_shadow
 {
+    float3 isect;
     float3 beta;
+
+    bool done;
     bool blocked;
+
+    int in_media;
 };
 
 
