@@ -25,6 +25,7 @@ rtDeclareVariable(float,    overcast, , );
 rtDeclareVariable(optix::float3,   sun_direction, , );
 rtDeclareVariable(optix::float3,   sun_color, , );
 rtDeclareVariable(optix::float3,   sky_up, , );
+
 rtDeclareVariable(float, atmos_dist, , );
 rtDeclareVariable(optix::float3, atmos_sigma_t, , );
 
@@ -78,7 +79,7 @@ __inline__ __device__ float3 Li_pathtrace(float3* ray_origin, float3* ray_dir, u
 
   int min_depth = 3;
 
-
+  prd.in_media = 0;
   prd.beta = make_float3(1.0f);
   prd.radiance = make_float3(0.0f); // light from a light source or miss program
 
