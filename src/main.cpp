@@ -48,22 +48,26 @@ const float DEFAULT_SUN_RADIUS = 0.05f;      // Softer default to show off soft 
 const float DEFAULT_SUN_THETA = 1.1f;
 const float DEFAULT_SUN_PHI = 300.0f * M_PIf / 180.0f;
 const float DEFAULT_OVERCAST = 0.3f;
+const float DEFAULT_EXPOSURE = 1.0f / 30.0f;
+
+// OBJ matl diffuse Kd
+const float DIFFUSE_CONST = 0.0f;
 
 // ATMOSPHERE
-const float MIN_ATMOS_SIGMA_S = 0.0100f; // In scattering parameter
-const float DEF_ATMOS_SIGMA_S = 0.0100f; // In scattering parameter
-const float MAX_ATMOS_SIGMA_S = 0.5000f; // In scattering parameter
+const float MIN_ATMOS_SIGMA_S = 0.010f; // In scattering parameter
+const float DEF_ATMOS_SIGMA_S = 0.010f; // In scattering parameter
+const float MAX_ATMOS_SIGMA_S = 0.500f; // In scattering parameter
 
-const float MIN_ATMOS_SIGMA_T = 0.000001f; // Extinction parameter
-const float DEF_ATMOS_SIGMA_T = 0.000500f; // Extinction parameter
-const float MAX_ATMOS_SIGMA_T = 0.010000f; // Extinction parameter
+const float MIN_ATMOS_SIGMA_T = 0.001f; // Extinction parameter
+const float DEF_ATMOS_SIGMA_T = 0.001f; // Extinction parameter
+const float MAX_ATMOS_SIGMA_T = 0.100f; // Extinction parameter
 
 const float MIN_ATMOS_G       = -1.0f; // G parameter
 const float DEF_ATMOS_G       =  0.0f; // G parameter
 const float MAX_ATMOS_G       =  1.0f; // G parameter
 
 const float MIN_ATMOS_DIST    =   1.00f; // Atmosphere distance parameter
-const float DEF_ATMOS_DIST    = 100.00f; // Atmosphere distance parameter
+const float DEF_ATMOS_DIST    =   1.00f; // Atmosphere distance parameter
 const float MAX_ATMOS_DIST    = 500.00f; // Atmosphere distance parameter
 
 // CAMERA
@@ -144,6 +148,7 @@ void createContext(bool use_pbo)
   context["atmos_sigma_t"]->setFloat(make_float3(DEF_ATMOS_SIGMA_T));
   context["atmos_g"]->setFloat(DEF_ATMOS_G);
   context["atmos_dist"]->setFloat(DEF_ATMOS_DIST);
+  context["exposure"]->setFloat(DEFAULT_EXPOSURE);
 
   // Set Global Camera Paramters
   context["aper"]->setFloat(DEFAULT_APERTURE);
@@ -248,8 +253,8 @@ void createGeometry()
   GeometryGroup geometry_group = context->createGeometryGroup();
   geometry_group->setAcceleration(context->createAcceleration("Trbvh"));
   
-  Geometry floor = createBox( make_float3(-256.0f,-1.0f,-256.0f), make_float3(256.0f,0.0f,256.0f) );
-  Material floor_matl = createPhongMaterial( make_float3(0.3f) );
+  Geometry floor = createBox( make_float3(-2048.0f,-1.0f,-2048.0f), make_float3(2048.0f,0.0f,2048.0f) );
+  Material floor_matl = createPhongMaterial( make_float3(DIFFUSE_CONST) );
   gis.push_back( context->createGeometryInstance( floor, &floor_matl, &floor_matl+1 ) );
 
   //GeometryGroup media_group = context->createGeometryGroup();
@@ -260,7 +265,7 @@ void createGeometry()
   mesh.context = context;
   mesh.intersection = context->createProgramFromPTXFile( geometry_ptx, "mesh_intersect" );
   mesh.bounds = context->createProgramFromPTXFile( geometry_ptx, "mesh_bounds" );
-  mesh.material = createPhongMaterial( make_float3(0.4f) );
+  mesh.material = createPhongMaterial( make_float3(DIFFUSE_CONST) );
   Matrix4x4 xform = Matrix4x4::identity();
  
   loadMesh( std::string( sutil::samplesDir() ) + "/godRay/model/obj/dome_simple.obj", mesh, xform );
@@ -389,6 +394,7 @@ void glfwRun(GLFWwindow *window, sutil::Camera &camera, sutil::PreethamSunSky &s
   float sun_theta = 0.5f * M_PIf - sky.getSunTheta();
   float sun_radius = DEFAULT_SUN_RADIUS;
   float overcast = DEFAULT_OVERCAST;
+  float exposure = DEFAULT_EXPOSURE;
 
   // Atmosphere
   float atmos_sigma_s = DEF_ATMOS_SIGMA_S;
@@ -527,6 +533,12 @@ void glfwRun(GLFWwindow *window, sutil::Camera &camera, sutil::PreethamSunSky &s
         if (ImGui::SliderFloat("aperature", &aper, 0.0f, 0.5f)) //TODO: find a better representation for the aperature scale
         {
           context["aper"]->setFloat(aper);
+          accumulation_frame = 0;
+        }
+        // Tonemap control
+        if (ImGui::SliderFloat("tonemap", &exposure, 0.0f, 1.0f))
+        {
+          context["exposure"]->setFloat(exposure);
           accumulation_frame = 0;
         }
       }

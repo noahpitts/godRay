@@ -68,7 +68,7 @@ __inline__ __device__ bool isBlack(float3 v)
 __inline__ __device__ bool atmos_scatter(unsigned int &seed, float &isect_dist)
 {
   // Sample an extinction channel | pbrt 894
-  int channel = min((int)rnd(seed) * 3, 2);
+  int channel = min((int)(rnd(seed) * 3.0f), 2);
   float channel_sigma_t = 1.0f;
   //TODO: clean this up so there are not so many conditional tests
   if (channel == 0) channel_sigma_t = atmos_sigma_t.x; 
@@ -76,7 +76,7 @@ __inline__ __device__ bool atmos_scatter(unsigned int &seed, float &isect_dist)
   else if (channel == 2) channel_sigma_t = atmos_sigma_t.z;
 
   // Sample a distance along the ray | pbrt 894
-  float sample_dist = -logf(rnd(seed)) / channel_sigma_t - scene_epsilon;
+  float sample_dist = -logf(rnd(seed)) / channel_sigma_t;// - scene_epsilon;
 
   // If a scattering event occured
   if (sample_dist < isect_dist) 
@@ -86,7 +86,7 @@ __inline__ __device__ bool atmos_scatter(unsigned int &seed, float &isect_dist)
     return true;
   }
   // Other use the original intersection
-  else return false;
+  return false;
 }
 
 // Sample for probability of scattering in a heterogeneous media before intersection
@@ -102,10 +102,25 @@ __inline__ __device__ bool media_scatter(unsigned int *seed, float *isect_dist)
 
 // Intersection Types
 enum ISECT_TYPE {
-  ATMOS,
+  ATMOS = 0,
   MEDIA,
   DIFFUSE
 };
+
+__inline__ __device__ void coordinate_system(float3 v1, float3 &v2, float3 &v3)
+{
+  if (abs(v1.x) > abs(v1.y))
+    v2 = make_float3(-v1.z, 0.0f, v1.x) / sqrtf(v1.x * v1.x + v1.z * v1.z);
+  else
+    v2 = make_float3(0.0f, v1.z, -v1.y) / sqrtf(v1.y * v1.y + v1.z * v1.z);
+  v3 = cross(v1, v2);
+}
+
+__inline__ __device__ float3 spherical_direction(float sinTheta, float cosTheta, float phi,
+                                                float3 x, float3 y, float3 z)
+{
+  return (sinTheta * cosf(phi) * x) + (sinTheta * sinf(phi) * y) + (cosTheta * z);
+}
 
 // Solid angle sample from Heyney-Greenstein phase function | pbrt 899
 __inline__ __device__ float hg_sample_phase(float u, float v, float g, float3 w_out, float3 &w_in)
@@ -128,14 +143,9 @@ __inline__ __device__ float hg_sample_phase(float u, float v, float g, float3 w_
 
   float phi = 2.0f * M_PIf * v;
 
-  float3 v1;
-  if (abs(w_out.x) > abs(w_out.y))
-    v1 = make_float3(-w_out.z, 0.0f, w_out.x) / sqrtf(w_out.x * w_out.x + w_out.z * w_out.z);
-  else
-    v1 = make_float3(0.0f, w_out.z, -w_out.y) / sqrtf(w_out.y * w_out.y + w_out.z * w_out.z);
-  float3 v2 = cross(v1, v2);
-
-  w_in = normalize((sinTheta * cosf(phi) * v1) + (sinTheta * sinf(phi) * v2) + (cosTheta * -w_out));
+  float3 v1 = make_float3(0.0f), v2 = make_float3(0.0f);
+  coordinate_system(w_out, v1, v2);
+  w_in = spherical_direction(sinTheta, cosTheta, phi, v1, v2, -w_out);
 
   // TODO: maybe we don't need the p(w) since pdf the and function are the same by definition
   float d = 1.0f + g * g + 2.0f * g * -cosTheta;
@@ -157,6 +167,12 @@ __inline__ __device__ float3 sample_sunLight(const DirectionalLight &sunlight, f
   const float2 disk_sample = square_to_disk(make_float2(rnd(prd_radiance.seed), rnd(prd_radiance.seed)));
   const float3 jittered_pos = sun_center + sunlight.radius * disk_sample.x * sunlight.v0 + sunlight.radius * disk_sample.y * sunlight.v1;
   return normalize(jittered_pos - isect);
+}
+
+__inline__ __device__ float diffuse_dot(float3 w_wo, float3 w_wi)
+{
+  const float3 ng = normalize(rtTransformNormal(RT_OBJECT_TO_WORLD, object_geometric_normal));
+  return dot(w_wo, ng) * dot(w_wi, ng);
 }
 
 // Estimate of direct Lighting contribution
@@ -188,9 +204,9 @@ __inline__ __device__ float3 estimate_direct_light(float3 isect, int isect_type,
 
         // Evaluate BSDF for light sampling strategy | pbrt 859 // TODO: CHECK THIS
       case DIFFUSE: // Lambertian scatter
-        const float NdotL = dot(ff_normal, w_i);                        // wo = ffnormal ???? check this
-        f = (Kd / M_PIf) * abs(NdotL);                                  // pbrt 532 & 575 
-        scattering_pdf = NdotL > 0.0f ? abs(NdotL) / M_PIf : 0.0f;      // pbrt 807
+        float ndotl = diffuse_dot(w_o, w_i);
+        f = (Kd / M_PIf);
+        scattering_pdf = (ndotl > 0.0f) ? abs(ndotl) / M_PIf : 0.0f;      // pbrt 807
         break;
     }
 
@@ -402,7 +418,8 @@ static __host__ __device__ __inline__ optix::float3 querySkyModel( bool CEL, con
 RT_PROGRAM void radiance_miss()
 {
   const bool show_sun = (prd_radiance.depth == 0);
-  prd_radiance.radiance = ray.direction.y <= 0.0f ? make_float3( 0.0f ) : querySkyModel( show_sun, ray.direction );
+  //prd_radiance.radiance = ray.direction.y <= 0.0f ? make_float3( 0.0f ) : querySkyModel( show_sun, ray.direction );
+  prd_radiance.radiance = querySkyModel( show_sun, ray.direction );
   prd_radiance.done = true;
 
   // beta from the atmosphere

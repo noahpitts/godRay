@@ -14,6 +14,7 @@ rtDeclareVariable(float3, W, , );
 rtDeclareVariable(float3, bad_color, , );
 rtDeclareVariable(float, scene_epsilon, , );
 rtDeclareVariable(int, max_depth, , );
+rtDeclareVariable(float, exposure, , );
 rtBuffer<uchar4, 2> output_buffer;
 rtBuffer<float4, 2> accum_buffer;
 rtDeclareVariable(rtObject, top_object, , );
@@ -117,10 +118,10 @@ __inline__ __device__ float3 Li_pathtrace(float3 ray_origin, float3 ray_dir, uns
 // ----------------------
 // TONE MAPPING FUNCTIONS
 // ----------------------
-__inline__ __device__ float3 tonemap(const float3 in)
+__inline__ __device__ float3 tonemap(const float3 in, const float exposure)
 {
   // hard coded exposure for sun/sky
-  const float exposure = 1.0f / 30.0f;
+  //const float exposure = 1.0f / 30.0f;
   float3 x = exposure * in;
 
   // "filmic" map from a GDC talk by John Hable.  This includes 1/gamma.
@@ -160,7 +161,7 @@ RT_PROGRAM void render_pixel()
   {
     acc_val = make_float4(L, 0.f);
   }
-  output_buffer[launch_index] = make_color( tonemap( make_float3( acc_val ) ) );
+  output_buffer[launch_index] = make_color( tonemap( make_float3( acc_val ), exposure ) );
   //output_buffer[launch_index] = make_color(make_float3(acc_val));
   accum_buffer[launch_index] = acc_val;
 }
