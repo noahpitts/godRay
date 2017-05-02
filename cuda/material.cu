@@ -305,7 +305,6 @@ RT_PROGRAM void diffuse_hit_radiance() // closest hit
     float atmos_pdf = (transmittance.x + transmittance.y + transmittance.z) / 3.0f;
 
     // Return weighting factor for scattering from surface and atmosphere | pbrt 894
-    if(atmos_pdf < 0.0001f) rtPrintf("PDF IS CLOSE TO 0: %f\n", atmos_pdf);
     prd_radiance.beta *= Kd * transmittance / atmos_pdf; // TODO: check this
 
     // ------->>>

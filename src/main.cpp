@@ -50,11 +50,21 @@ const float DEFAULT_SUN_PHI = 300.0f * M_PIf / 180.0f;
 const float DEFAULT_OVERCAST = 0.3f;
 
 // ATMOSPHERE
-const float DEFAULT_ATMOS_SIGMA_S = 0.05f; // In scattering parameter
-const float DEFAULT_ATMOS_SIGMA_T = 0.05f; // Extinction parameter
-const float DEFAULT_ATMOS_G       = 0.05f; // G parameter
-const float DEFAULT_ATMOS_DIST    = 0.05f; // Atmosphere distance parameter
-const float DEFAULT_ATMOSPHERE    = 50.0f; // Atmosphere parameter
+const float MIN_ATMOS_SIGMA_S = 0.0100f; // In scattering parameter
+const float DEF_ATMOS_SIGMA_S = 0.0100f; // In scattering parameter
+const float MAX_ATMOS_SIGMA_S = 0.5000f; // In scattering parameter
+
+const float MIN_ATMOS_SIGMA_T = 0.000001f; // Extinction parameter
+const float DEF_ATMOS_SIGMA_T = 0.000500f; // Extinction parameter
+const float MAX_ATMOS_SIGMA_T = 0.010000f; // Extinction parameter
+
+const float MIN_ATMOS_G       = -1.0f; // G parameter
+const float DEF_ATMOS_G       =  0.0f; // G parameter
+const float MAX_ATMOS_G       =  1.0f; // G parameter
+
+const float MIN_ATMOS_DIST    =   1.00f; // Atmosphere distance parameter
+const float DEF_ATMOS_DIST    = 100.00f; // Atmosphere distance parameter
+const float MAX_ATMOS_DIST    = 500.00f; // Atmosphere distance parameter
 
 // CAMERA
 const float DEFAULT_APERTURE = 1 / 8.0f;
@@ -130,10 +140,10 @@ void createContext(bool use_pbo)
   context["max_depth"]->setInt(DEFAULT_MAXDEPTH);
 
   // Set Gloabal Atmosphere Parameters
-  context["atmos_sigma_s"]->setFloat(make_float3(DEFAULT_ATMOS_SIGMA_S));
-  context["atmos_sigma_t"]->setFloat(make_float3(DEFAULT_ATMOS_SIGMA_T));
-  context["atmos_g"]->setFloat(DEFAULT_ATMOS_G);
-  context["atmos_dist"]->setFloat(DEFAULT_ATMOSPHERE);
+  context["atmos_sigma_s"]->setFloat(make_float3(DEF_ATMOS_SIGMA_S));
+  context["atmos_sigma_t"]->setFloat(make_float3(DEF_ATMOS_SIGMA_T));
+  context["atmos_g"]->setFloat(DEF_ATMOS_G);
+  context["atmos_dist"]->setFloat(DEF_ATMOS_DIST);
 
   // Set Global Camera Paramters
   context["aper"]->setFloat(DEFAULT_APERTURE);
@@ -238,23 +248,23 @@ void createGeometry()
   GeometryGroup geometry_group = context->createGeometryGroup();
   geometry_group->setAcceleration(context->createAcceleration("Trbvh"));
   
-  Geometry med = createBox( make_float3(-2.0f), make_float3(2.0f) );
-  Material med_matl = createPhongMaterial( make_float3(0.0f, 1.0f, 1.0f) );
-  gis.push_back( context->createGeometryInstance( med, &med_matl, &med_matl+1 ) );
+  Geometry floor = createBox( make_float3(-256.0f,-1.0f,-256.0f), make_float3(256.0f,0.0f,256.0f) );
+  Material floor_matl = createPhongMaterial( make_float3(0.3f) );
+  gis.push_back( context->createGeometryInstance( floor, &floor_matl, &floor_matl+1 ) );
 
   //GeometryGroup media_group = context->createGeometryGroup();
   //media_group->setAcceleration(context->createAcceleration("None"));
 
   // Load mesh
-  //OptiXMesh mesh;
-  //mesh.context = context;
-  //mesh.intersection = context->createProgramFromPTXFile( geometry_ptx, "mesh_intersect" );
-  //mesh.bounds = context->createProgramFromPTXFile( geometry_ptx, "mesh_bounds" );
-  //mesh.material = createPhongMaterial( make_float3(0.6f, 0.3f, 0.3f) );
-  //Matrix4x4 xform = Matrix4x4::identity();
+  OptiXMesh mesh;
+  mesh.context = context;
+  mesh.intersection = context->createProgramFromPTXFile( geometry_ptx, "mesh_intersect" );
+  mesh.bounds = context->createProgramFromPTXFile( geometry_ptx, "mesh_bounds" );
+  mesh.material = createPhongMaterial( make_float3(0.4f) );
+  Matrix4x4 xform = Matrix4x4::identity();
  
-  //loadMesh( std::string( sutil::samplesDir() ) + "/godRay/model/obj/dome_simple.obj", mesh, xform );
-  //gis.push_back(mesh.geom_instance);
+  loadMesh( std::string( sutil::samplesDir() ) + "/godRay/model/obj/dome_simple.obj", mesh, xform );
+  gis.push_back(mesh.geom_instance);
 
   geometry_group->setChildCount( static_cast<unsigned int>(gis.size()) );
   for(int i = 0; i < gis.size(); ++i) geometry_group->setChild( i, gis[i] );
@@ -381,11 +391,10 @@ void glfwRun(GLFWwindow *window, sutil::Camera &camera, sutil::PreethamSunSky &s
   float overcast = DEFAULT_OVERCAST;
 
   // Atmosphere
-  float atmos_sigma_s = DEFAULT_ATMOS_SIGMA_S;
-  float atmos_sigma_t = DEFAULT_ATMOS_SIGMA_T;
-  float atmos_dist = DEFAULT_ATMOS_DIST;
-  float atmos_g = DEFAULT_ATMOS_G;
-  float atmos = DEFAULT_ATMOSPHERE;
+  float atmos_sigma_s = DEF_ATMOS_SIGMA_S;
+  float atmos_sigma_t = DEF_ATMOS_SIGMA_T;
+  float atmos_dist = DEF_ATMOS_DIST;
+  float atmos_g = DEF_ATMOS_G;
 
   // Camera
   float aper = DEFAULT_APERTURE;
@@ -492,22 +501,22 @@ void glfwRun(GLFWwindow *window, sutil::Camera &camera, sutil::PreethamSunSky &s
       }
       // Atmosphere Control
       if (ImGui::CollapsingHeader(" Atmosphere", header_flags)) {
-        if (ImGui::SliderFloat("in scattering", &atmos_sigma_s, 0.0f, 1.0f))
+        if (ImGui::SliderFloat("in scattering", &atmos_sigma_s, MIN_ATMOS_SIGMA_S, MAX_ATMOS_SIGMA_S))
         {
           context["atmos_sigma_s"]->setFloat(make_float3(atmos_sigma_s));
           accumulation_frame = 0;
         }
-        if (ImGui::SliderFloat("extinction", &atmos_sigma_t, 0.0f, 10.0f))
+        if (ImGui::SliderFloat("extinction", &atmos_sigma_t, MIN_ATMOS_SIGMA_T, MAX_ATMOS_SIGMA_T))
         {
           context["atmos_sigma_t"]->setFloat(make_float3(atmos_sigma_t));
           accumulation_frame = 0;
         }
-        if (ImGui::SliderFloat("dist", &atmos_dist, 0.0f, 100.0f))
+        if (ImGui::SliderFloat("dist", &atmos_dist, MIN_ATMOS_DIST, MAX_ATMOS_DIST))
         {
           context["atmos_dist"]->setFloat(atmos_dist);
           accumulation_frame = 0;
         }
-        if (ImGui::SliderFloat("g", &atmos_g, -1.0f, 1.0f))
+        if (ImGui::SliderFloat("g", &atmos_g, MIN_ATMOS_G, MAX_ATMOS_G))
         {
           context["atmos_g"]->setFloat(atmos_g);
           accumulation_frame = 0;
@@ -666,8 +675,8 @@ int main(int argc, char **argv)
 
     context->validate();
 
-    const optix::float3 camera_eye(optix::make_float3(0.0f, 16.0f, -64.0f));
-    const optix::float3 camera_lookat(optix::make_float3(0.0f, 0.0f, 0.0f));
+    const optix::float3 camera_eye(optix::make_float3(0.0f, 16.0f, -32.0f));
+    const optix::float3 camera_lookat(optix::make_float3(0.0f, 32.0f, 0.0f));
     const optix::float3 camera_up(optix::make_float3(0.0f, 1.0f, 0.0f));
     sutil::Camera camera(WIDTH, HEIGHT,
         &camera_eye.x, &camera_lookat.x, &camera_up.x,
