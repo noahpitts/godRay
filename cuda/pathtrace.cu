@@ -66,6 +66,7 @@ __inline__ __device__ float3 Li_pathtrace(float3 ray_origin, float3 ray_dir, uns
 
   //prd.in_media = 0;
   prd.beta = make_float3(1.0f);
+  prd.tr = make_float3(1.0f);
   prd.radiance = make_float3(0.0f); // light from a light source or miss program
 
   // next ray to be traced
@@ -81,7 +82,7 @@ __inline__ __device__ float3 Li_pathtrace(float3 ray_origin, float3 ray_dir, uns
     optix::Ray ray(ray_origin, ray_dir, /*ray type*/ 0, scene_epsilon);
     rtTrace(top_object, ray, prd);
 
-    L += prd.beta * prd.radiance;
+    L += prd.tr * prd.radiance;
 
     // terminate path if no more contribution
     //if (prd.beta.x <= 0.001f && prd.beta.y <= 0.001f && prd.beta.z <= 0.001f) prd.done = true;
@@ -122,7 +123,7 @@ __inline__ __device__ float3 tonemap(const float3 in, const float exposure)
 {
   // hard coded exposure for sun/sky
   //const float exposure = 1.0f / 30.0f;
-  float3 x = exposure * in;
+  float3 x = (1.0f / exposure) * in;
 
   // "filmic" map from a GDC talk by John Hable.  This includes 1/gamma.
   x = fmaxf(x - make_float3(0.004f), make_float3(0.0f));

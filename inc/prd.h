@@ -8,6 +8,7 @@ struct PerRayData_radiance
   unsigned int seed;
 
   float3 beta;
+  float3 tr;
   float3 radiance;
 
   float3 origin;

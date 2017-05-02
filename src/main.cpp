@@ -44,14 +44,14 @@ const unsigned int HEIGHT = 768u;
 
 // SUN/SKY
 const float PHYSICAL_SUN_RADIUS = 0.004675f; // from Wikipedia
-const float DEFAULT_SUN_RADIUS = 0.05f;      // Softer default to show off soft shadows
-const float DEFAULT_SUN_THETA = 1.1f;
+const float DEFAULT_SUN_RADIUS = 0.15f;      // Softer default to show off soft shadows
+const float DEFAULT_SUN_THETA = 0.18f;
 const float DEFAULT_SUN_PHI = 300.0f * M_PIf / 180.0f;
-const float DEFAULT_OVERCAST = 0.3f;
-const float DEFAULT_EXPOSURE = 1.0f / 30.0f;
+const float DEFAULT_OVERCAST = 0.5f;
+const float DEFAULT_EXPOSURE = 1000.0f;
 
 // OBJ matl diffuse Kd
-const float DIFFUSE_CONST = 0.0f;
+const float DIFFUSE_CONST = 0.8f;
 
 // ATMOSPHERE
 const float MIN_ATMOS_SIGMA_S = 0.010f; // In scattering parameter
@@ -63,7 +63,7 @@ const float DEF_ATMOS_SIGMA_T = 0.001f; // Extinction parameter
 const float MAX_ATMOS_SIGMA_T = 0.100f; // Extinction parameter
 
 const float MIN_ATMOS_G       = -1.0f; // G parameter
-const float DEF_ATMOS_G       =  0.0f; // G parameter
+const float DEF_ATMOS_G       =  0.99f; // G parameter
 const float MAX_ATMOS_G       =  1.0f; // G parameter
 
 const float MIN_ATMOS_DIST    =   1.00f; // Atmosphere distance parameter
@@ -74,7 +74,7 @@ const float MAX_ATMOS_DIST    = 500.00f; // Atmosphere distance parameter
 const float DEFAULT_APERTURE = 1 / 8.0f;
 
 // RENDERER
-const int DEFAULT_MAXDEPTH = 10;
+const int DEFAULT_MAXDEPTH = 5;
 
 // Ray Types
 enum RAY_TYPE {
@@ -253,9 +253,9 @@ void createGeometry()
   GeometryGroup geometry_group = context->createGeometryGroup();
   geometry_group->setAcceleration(context->createAcceleration("Trbvh"));
   
-  Geometry floor = createBox( make_float3(-2048.0f,-1.0f,-2048.0f), make_float3(2048.0f,0.0f,2048.0f) );
-  Material floor_matl = createPhongMaterial( make_float3(DIFFUSE_CONST) );
-  gis.push_back( context->createGeometryInstance( floor, &floor_matl, &floor_matl+1 ) );
+  //Geometry floor = createBox( make_float3(-2048.0f,-1.0f,-2048.0f), make_float3(2048.0f,0.0f,2048.0f) );
+  //Material floor_matl = createPhongMaterial( make_float3(DIFFUSE_CONST) );
+  //gis.push_back( context->createGeometryInstance( floor, &floor_matl, &floor_matl+1 ) );
 
   //GeometryGroup media_group = context->createGeometryGroup();
   //media_group->setAcceleration(context->createAcceleration("None"));
@@ -268,7 +268,8 @@ void createGeometry()
   mesh.material = createPhongMaterial( make_float3(DIFFUSE_CONST) );
   Matrix4x4 xform = Matrix4x4::identity();
  
-  loadMesh( std::string( sutil::samplesDir() ) + "/godRay/model/obj/dome_simple.obj", mesh, xform );
+  //loadMesh( std::string( sutil::samplesDir() ) + "/godRay/model/obj/dome_simple.obj", mesh, xform );
+  loadMesh(std::string(sutil::samplesDir()) + "/godRay/model/obj/temple_midres_mesh.obj", mesh, xform);
   gis.push_back(mesh.geom_instance);
 
   geometry_group->setChildCount( static_cast<unsigned int>(gis.size()) );
@@ -536,7 +537,7 @@ void glfwRun(GLFWwindow *window, sutil::Camera &camera, sutil::PreethamSunSky &s
           accumulation_frame = 0;
         }
         // Tonemap control
-        if (ImGui::SliderFloat("tonemap", &exposure, 0.0f, 1.0f))
+        if (ImGui::SliderFloat("tonemap", &exposure, 1.0f, 10000.0f))
         {
           context["exposure"]->setFloat(exposure);
           accumulation_frame = 0;
@@ -687,8 +688,8 @@ int main(int argc, char **argv)
 
     context->validate();
 
-    const optix::float3 camera_eye(optix::make_float3(0.0f, 16.0f, -32.0f));
-    const optix::float3 camera_lookat(optix::make_float3(0.0f, 32.0f, 0.0f));
+    const optix::float3 camera_eye(optix::make_float3(0.0f, 0.0f, -150.0f));
+    const optix::float3 camera_lookat(optix::make_float3(0.0f, 48.0f, -400.0f));
     const optix::float3 camera_up(optix::make_float3(0.0f, 1.0f, 0.0f));
     sutil::Camera camera(WIDTH, HEIGHT,
         &camera_eye.x, &camera_lookat.x, &camera_up.x,

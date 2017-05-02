@@ -160,6 +160,16 @@ __inline__ __device__ float hg_phase(float g, float3 w_out, float3 w_in)
   return (1.0f / (4.0f * M_PIf)) * (1.0f - g * g) / (d * sqrtf(d));
 }
 
+// Sample diffuse_bsdf
+__inline__ __device__ float3 cwh_sample(float u, float v, float &pdf) {
+
+    float r = sqrtf(u);
+    float theta = 2.0f * M_PIf * v;
+    pdf = sqrtf(1.0f - u) / M_PIf;
+    return make_float3(r * cosf(theta), r * sinf(theta), sqrtf(1.0f - u));
+}
+
+
 // Sample the SunLight
 __inline__ __device__ float3 sample_sunLight(const DirectionalLight &sunlight, float3 isect)
 {
@@ -290,17 +300,18 @@ RT_PROGRAM void diffuse_hit_radiance() // closest hit
   {
     // Handle Atmosphere scatter
 
+    // Esitmate Direct Lighting // update for surface type
+    float3 isect = ray.origin + isect_dist * ray.direction;
+    prd_radiance.radiance = prd_radiance.beta * estimate_direct_light(isect, ATMOS, -prd_radiance.direction, -prd_radiance.direction); // / (2.0f * M_PIf); // TODO: check this
+
+
     // Compute the transmittance and sampleing density | pbrt 894
     float3 transmittance = expf(-atmos_sigma_t * isect_dist);
     float3 density = atmos_sigma_t * transmittance;
     float atmos_pdf = (density.x + density.y + density.z) / 3.0f;
 
     // Set weighting factor for scattering from atmosphere | pbrt 894
-    prd_radiance.beta *= transmittance * atmos_sigma_s / atmos_pdf;
-    float3 isect = ray.origin + isect_dist * ray.direction;
-  
-    // Esitmate Direct Lighting // update for surface type
-    prd_radiance.radiance = estimate_direct_light(isect, ATMOS, -prd_radiance.direction, -prd_radiance.direction) / (2.0f * M_PIf); // TODO: check this
+    prd_radiance.tr *= transmittance * atmos_sigma_s / atmos_pdf;
 
     // Sample solid angle of atmos scatter bounce
     float3 w_in = make_float3(0.0f);
@@ -309,6 +320,7 @@ RT_PROGRAM void diffuse_hit_radiance() // closest hit
     // Set next ray bounce
     prd_radiance.origin = isect;
     prd_radiance.direction = w_in;
+    //
   }
   // Scatter occured on surface
   else
@@ -321,7 +333,7 @@ RT_PROGRAM void diffuse_hit_radiance() // closest hit
     float atmos_pdf = (transmittance.x + transmittance.y + transmittance.z) / 3.0f;
 
     // Return weighting factor for scattering from surface and atmosphere | pbrt 894
-    prd_radiance.beta *= Kd * transmittance / atmos_pdf; // TODO: check this
+    prd_radiance.tr *= transmittance / atmos_pdf; // TODO: check this
 
     // ------->>>
 
@@ -331,8 +343,9 @@ RT_PROGRAM void diffuse_hit_radiance() // closest hit
     const float3 ffnormal = faceforward(world_shading_normal, -ray.direction, world_geometric_normal);
 
     // Sample surface solid angle // TODO: check this
-    float3 w_in;
-    optix::cosine_sample_hemisphere(rnd(prd_radiance.seed), rnd(prd_radiance.seed), w_in);
+    float3 bsdf_f = Kd / M_PIf;
+    float bsdf_pdf;
+    float3 w_in = cwh_sample(rnd(prd_radiance.seed), rnd(prd_radiance.seed), bsdf_pdf);
     const optix::Onb onb(ffnormal);
     onb.inverse_transform(w_in);
 
@@ -341,7 +354,9 @@ RT_PROGRAM void diffuse_hit_radiance() // closest hit
     prd_radiance.direction = w_in;
 
     // Esitmate Direct Lighting // update for surface type
-    prd_radiance.radiance = estimate_direct_light(fhp, DIFFUSE, -prd_radiance.direction, ffnormal) / (2.0f * M_PIf); // TODO: check this
+    prd_radiance.radiance = prd_radiance.beta * estimate_direct_light(fhp, DIFFUSE, -prd_radiance.direction, ffnormal);// TODO: check this
+    
+    prd_radiance.beta *= bsdf_f * dot(ffnormal, w_in) / bsdf_pdf;
   }
 }
 
