@@ -492,22 +492,22 @@ void glfwRun(GLFWwindow *window, sutil::Camera &camera, sutil::PreethamSunSky &s
       }
       // Atmosphere Control
       if (ImGui::CollapsingHeader(" Atmosphere", header_flags)) {
-        if (ImGui::SliderFloat("in scattering", &atmos_sigma_t, 0.0f, 1.0f))
+        if (ImGui::SliderFloat("in scattering", &atmos_sigma_s, 0.0f, 1.0f))
         {
           context["atmos_sigma_s"]->setFloat(make_float3(atmos_sigma_s));
           accumulation_frame = 0;
         }
-        if (ImGui::SliderFloat("extinction", &atmos_sigma_t, 0.0f, 100.0f))
+        if (ImGui::SliderFloat("extinction", &atmos_sigma_t, 0.0f, 10.0f))
         {
           context["atmos_sigma_t"]->setFloat(make_float3(atmos_sigma_t));
           accumulation_frame = 0;
         }
-        if (ImGui::SliderFloat("dist", &atmos, 0.0f, 100.0f))
+        if (ImGui::SliderFloat("dist", &atmos_dist, 0.0f, 100.0f))
         {
           context["atmos_dist"]->setFloat(atmos_dist);
           accumulation_frame = 0;
         }
-        if (ImGui::SliderFloat("g", &atmos, 0.0f, 100.0f))
+        if (ImGui::SliderFloat("g", &atmos_g, -1.0f, 1.0f))
         {
           context["atmos_g"]->setFloat(atmos_g);
           accumulation_frame = 0;
