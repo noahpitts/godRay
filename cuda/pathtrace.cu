@@ -20,21 +20,6 @@ rtDeclareVariable(rtObject, top_object, , );
 rtDeclareVariable(unsigned int, frame, , );
 rtDeclareVariable(uint2, launch_index, rtLaunchIndex, );
 
-rtDeclareVariable(float,    overcast, , );
-rtDeclareVariable(optix::float3,   sun_direction, , );
-rtDeclareVariable(optix::float3,   sun_color, , );
-rtDeclareVariable(optix::float3,   sky_up, , );
-
-rtDeclareVariable(float, atmos_dist, , );
-rtDeclareVariable(optix::float3, atmos_sigma_t, , );
-
-rtDeclareVariable(optix::float3, inv_divisor_Yxy, ,);
-rtDeclareVariable(optix::float3, c0, ,);
-rtDeclareVariable(optix::float3, c1, ,);
-rtDeclareVariable(optix::float3, c2, ,);
-rtDeclareVariable(optix::float3, c3, ,);
-rtDeclareVariable(optix::float3, c4, ,);
-
 // ------------------------
 // PIXEL SAMPLING FUNCTIONS
 // ------------------------
@@ -74,11 +59,11 @@ __inline__ __device__ float3 Li_pathtrace(float3 ray_origin, float3 ray_dir, uns
   PerRayData_radiance prd;
   prd.depth = 0;
   prd.seed = seed;
-  prd.done = false;
+  //prd.done = false;
 
   int min_depth = 3;
 
-  prd.in_media = 0;
+  //prd.in_media = 0;
   prd.beta = make_float3(1.0f);
   prd.radiance = make_float3(0.0f); // light from a light source or miss program
 
@@ -98,13 +83,13 @@ __inline__ __device__ float3 Li_pathtrace(float3 ray_origin, float3 ray_dir, uns
     L += prd.beta * prd.radiance;
 
     // terminate path if no more contribution
-    if (prd.beta.x <= 0.001f && prd.beta.y <= 0.001f && prd.beta.z <= 0.001f) prd.done = true;
-    if (prd.done)
-    {
-      break;
-    }
+    //if (prd.beta.x <= 0.001f && prd.beta.y <= 0.001f && prd.beta.z <= 0.001f) prd.done = true;
+    //if (prd.done)
+    //{
+    //  break;
+    //}
     // terminate path if max depth was reached
-    else if (prd.depth >= max_depth)
+    if (prd.depth >= max_depth)
     {
       //L += prd.beta * cutoff_color;
       break;
@@ -183,65 +168,19 @@ RT_PROGRAM void render_pixel()
 RT_PROGRAM void exception()
 {
   const unsigned int code = rtGetExceptionCode();
-  rtPrintf("Caught exception 0x%X at launch index (%d,%d)\n", code, launch_index.x, launch_index.y);
+  switch(code) {
+    case RT_EXCEPTION_TEXTURE_ID_INVALID: rtPrintf("TEXTURE_ID\n"); break;
+    case RT_EXCEPTION_BUFFER_ID_INVALID: rtPrintf("BUFFER_ID\n"); break;
+    case RT_EXCEPTION_INDEX_OUT_OF_BOUNDS: rtPrintf("INDEX_OUT_OF_BOUNDS\n"); break;
+    case RT_EXCEPTION_STACK_OVERFLOW: rtPrintf("STACK_OVERFLOW\n"); break;
+    case RT_EXCEPTION_BUFFER_INDEX_OUT_OF_BOUNDS: rtPrintf("BUFFER_INDEX_OUT_OF_BOUNDS\n"); break;
+    case RT_EXCEPTION_INVALID_RAY: rtPrintf("INVALID_RAY\n"); break;
+    case RT_EXCEPTION_INTERNAL_ERROR: rtPrintf("INTERNAL_ERROR\n"); break;
+    case RT_EXCEPTION_USER: rtPrintf("USER\n"); break;
+    case RT_EXCEPTION_ALL: rtPrintf("ALL\n"); break;
+    default: rtPrintf("UNKNOWN Caught exception 0x%X at launch index (%d,%d)\n", code, launch_index.x, launch_index.y);
+  }
   output_buffer[launch_index] = make_color(bad_color);
 }
 
-
-static __host__ __device__ __inline__ optix::float3 querySkyModel( bool CEL, const optix::float3& direction )
-{
-  using namespace optix;
-
-  float3 overcast_sky_color = make_float3( 0.0f );
-  float3 sunlit_sky_color   = make_float3( 0.0f );
-
-  // Preetham skylight model
-  if( overcast < 1.0f ) {
-    float3 ray_direction = direction;
-    if( CEL && dot( ray_direction, sun_direction ) > 94.0f / sqrtf( 94.0f*94.0f + 0.45f*0.45f) ) {
-      sunlit_sky_color = sun_color;
-    } else {
-      float inv_dir_dot_up = 1.f / dot( ray_direction, sky_up ); 
-      if(inv_dir_dot_up < 0.f) {
-        ray_direction = reflect(ray_direction, sky_up );
-        inv_dir_dot_up = -inv_dir_dot_up;
-      }
-
-      float gamma = dot(sun_direction, ray_direction);
-      float acos_gamma = acosf(gamma);
-      float3 A =  c1 * inv_dir_dot_up;
-      float3 B =  c3 * acos_gamma;
-      float3 color_Yxy = ( make_float3( 1.0f ) + c0*make_float3( expf( A.x ),expf( A.y ),expf( A.z ) ) ) *
-        ( make_float3( 1.0f ) + c2*make_float3( expf( B.x ),expf( B.y ),expf( B.z ) ) + c4*gamma*gamma );
-      color_Yxy *= inv_divisor_Yxy;
-
-      color_Yxy.y = 0.33f + 1.2f * ( color_Yxy.y - 0.33f ); // Pump up chromaticity a bit
-      color_Yxy.z = 0.33f + 1.2f * ( color_Yxy.z - 0.33f ); //
-      float3 color_XYZ = Yxy2XYZ( color_Yxy );
-      sunlit_sky_color = XYZ2rgb( color_XYZ ); 
-      sunlit_sky_color /= 1000.0f; // We are choosing to return kilo-candellas / meter^2
-    }
-  }
-
-  // CIE standard overcast sky model
-  float Y =  15.0f;
-  overcast_sky_color = make_float3( ( 1.0f + 2.0f * fabsf( direction.y ) ) / 3.0f * Y );
-
-  // return linear combo of the two
-  return lerp( sunlit_sky_color, overcast_sky_color, overcast );
-}
-
-rtDeclareVariable(optix::Ray, ray, rtCurrentRay, );
-rtDeclareVariable(PerRayData_radiance, prd_radiance, rtPayload, );
-
-
-RT_PROGRAM void miss()
-{
-  const bool show_sun = (prd_radiance.depth == 0);
-  prd_radiance.radiance = ray.direction.y <= 0.0f ? make_float3( 0.0f ) : querySkyModel( show_sun, ray.direction );
-  prd_radiance.done = true;
-
-  // beta from the atmosphere
-  prd_radiance.beta *= expf(-atmos_sigma_t * atmos_dist);
-}
 

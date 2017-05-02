@@ -116,12 +116,15 @@ void createContext(bool use_pbo)
   context = Context::create();
   context->setRayTypeCount(NUM_RAYS);
   context->setEntryPointCount(1);
-  context->setStackSize(600);     // TODO: debug for optimal stack size
+  context->setStackSize(1200);     // TODO: debug for optimal stack size
 
   context["frame"]->setUint(0u);
   context["scene_epsilon"]->setFloat(1.e-3f);
   context->setPrintEnabled(true);
   context->setPrintBufferSize(1024);
+
+  context["radiance_ray_type"]->setUint(RADIANCE);
+  context["shadow_ray_type"]->setUint(SHADOW);
 
   // Set Gloabel Renderer Parameters
   context["max_depth"]->setInt(DEFAULT_MAXDEPTH);
@@ -158,7 +161,8 @@ void createLights(sutil::PreethamSunSky &sky, DirectionalLight &sun, Buffer &lig
   //
   // Sun and sky model
   //
-  context->setMissProgram(0, context->createProgramFromPTXFile(pathtrace_ptx, "miss"));
+  context->setMissProgram(RADIANCE, context->createProgramFromPTXFile(material_ptx, "radiance_miss"));
+  context->setMissProgram(SHADOW, context->createProgramFromPTXFile(material_ptx, "shadow_miss"));
 
   sky.setSunTheta(DEFAULT_SUN_THETA); // 0: noon, pi/2: sunset
   sky.setSunPhi(DEFAULT_SUN_PHI);
@@ -235,7 +239,7 @@ void createGeometry()
   geometry_group->setAcceleration(context->createAcceleration("Trbvh"));
   
   Geometry med = createBox( make_float3(-2.0f), make_float3(2.0f) );
-  Material med_matl = createPhongMaterial( make_float3(0.99f) );
+  Material med_matl = createPhongMaterial( make_float3(0.0f, 1.0f, 1.0f) );
   gis.push_back( context->createGeometryInstance( med, &med_matl, &med_matl+1 ) );
 
   //GeometryGroup media_group = context->createGeometryGroup();
