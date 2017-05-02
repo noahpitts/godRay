@@ -1,8 +1,30 @@
 #!/bin/python3
 
 import subprocess
+import math
 
 exec_path = "/cygdrive/c/ProgramData/NVIDIA Corporation/OptiX SDK 4.0.2/optix_advanced_samples/build/bin/Debug/"
+out_path = "output/"
 program = "godRay.exe"
 
-subprocess.call([exec_path + program])
+f_fmt = (out_path + "output_{:0>4d}.png").format
+kwargs = {
+        "-f" : "", # output filename
+        "-nf" : "100", # number of frames per render
+        "-st" : "", # sun theta value
+
+}
+
+for i,st in enumerate(range(60,120,20)):
+    kwargs["-st"] = "{}".format(0.5 * math.pi - st * math.pi / 180.0)
+    kwargs["-f"] = f_fmt(i)
+
+    args = [
+            exec_path + program,
+            "-f", kwargs["-f"],
+            "-nf", kwargs["-nf"],
+            "-st", kwargs["-st"],
+    ]
+
+    print("Calling:", args);
+    subprocess.call(args)
