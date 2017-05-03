@@ -355,30 +355,31 @@ void keyCallback(GLFWwindow *window, int key, int scancode, int action, int mods
   {
     switch (key)
     {
-    case GLFW_KEY_Q:
-    case GLFW_KEY_ESCAPE:
-      if (context)
-        context->destroy();
-      if (window)
-        glfwDestroyWindow(window);
-      glfwTerminate();
-      exit(EXIT_SUCCESS);
+      case GLFW_KEY_Q:
+      case GLFW_KEY_ESCAPE:
+        if (context)
+          context->destroy();
+        if (window)
+          glfwDestroyWindow(window);
+        glfwTerminate();
+        exit(EXIT_SUCCESS);
 
-    case (GLFW_KEY_S):
-    {
-      const std::string outputImage = std::string(PROGRAM_NAME) + ".png";
-      std::cerr << "Saving current frame to '" << outputImage << "'\n";
-      sutil::writeBufferToFile(outputImage.c_str(), getOutputBuffer());
-      handled = true;
-      break;
-    }
-    case (GLFW_KEY_F):
-    {
-      CallbackData *cb = static_cast<CallbackData *>(glfwGetWindowUserPointer(window));
-      cb->camera.reset_lookat();
-      cb->accumulation_frame = 0;
-      handled = true;
-      break;
+      case (GLFW_KEY_S):
+      {
+        const std::string outputImage = std::string(PROGRAM_NAME) + ".png";
+        std::cerr << "Saving current frame to '" << outputImage << "'\n";
+        sutil::writeBufferToFile(outputImage.c_str(), getOutputBuffer());
+        handled = true;
+        break;
+      }
+      case (GLFW_KEY_F):
+      {
+        CallbackData *cb = static_cast<CallbackData *>(glfwGetWindowUserPointer(window));
+        cb->camera.reset_lookat();
+        cb->accumulation_frame = 0;
+        handled = true;
+        break;
+      }
     }
   }
 
