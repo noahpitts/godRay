@@ -3,28 +3,50 @@
 import subprocess
 import math
 
-exec_path = "/cygdrive/c/ProgramData/NVIDIA Corporation/OptiX SDK 4.0.2/optix_advanced_samples/build/bin/Debug/"
-out_path = "output/"
+DEBUG = True
+version = "Debug" if DEBUG else "Release"
 program = "godRay.exe"
+out_path = "output/"
+
+exec_path = "/cygdrive/c/ProgramData/NVIDIA Corporation/OptiX SDK 4.0.2/optix_advanced_samples/build/bin/{}/{}".format(version, program)
+
 
 f_fmt = (out_path + "output_{:0>4d}.png").format
-kwargs = {
-        "-f" : "", # output filename
-        "-nf" : "100", # number of frames per render
-        "-st" : "", # sun theta value
-
+kwargs = { 
+    "-nf" : "1000",
+    "-wh" : ["200", "150"]
 }
 
-for i,st in enumerate(range(60,120,20)):
-    kwargs["-st"] = "{}".format(0.5 * math.pi - st * math.pi / 180.0)
+start_frame = 0
+num_frames = 200
+step_size = 40
+for i in range(start_frame,num_frames+step_size,step_size):
+    u = i / num_frames
+
+    t1 = 30  * math.pi / 180
+    t2 =  5  * math.pi / 180
+    
+    p1 = 0   * math.pi / 180
+    p2 = 180 * math.pi / 180
+    
+    p = p1*u + p2*(1-u)
+
+    if u < 0.5:
+        t = t1*u*2 + t2*(1-u*2)
+    else:
+        t = t2*(u-0.5)*2 + t1*(1-(u-0.5)*2)
+
+    kwargs["-st"] = "{:.4f}".format(t)
+    kwargs["-sp"] = "{:.4f}".format(p)
     kwargs["-f"] = f_fmt(i)
 
-    args = [
-            exec_path + program,
-            "-f", kwargs["-f"],
-            "-nf", kwargs["-nf"],
-            "-st", kwargs["-st"],
-    ]
+    args = [exec_path]
+    for k in kwargs:
+        args.append(k)
+        if(isinstance(kwargs[k], list)):
+            args += kwargs[k]
+        else:
+            args.append(kwargs[k])
 
     print("Calling:", args);
     subprocess.call(args)

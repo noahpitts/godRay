@@ -36,6 +36,7 @@ rtDeclareVariable(float3, atmos_sigma_t, , );
 rtDeclareVariable(float3, atmos_sigma_s, , );
 rtDeclareVariable(float, atmos_g, , );
 rtDeclareVariable(float, atmos_dist, , );
+rtDeclareVariable(float3, zeus, , );
 
 rtDeclareVariable(float,    overcast, , );
 rtDeclareVariable(optix::float3,   sun_direction, , );
@@ -208,6 +209,7 @@ __inline__ __device__ float3 estimate_direct_light(float3 isect, int isect_type,
       case ATMOS: // Atmospheric scatter
 
         float p = hg_phase(atmos_g, w_o, w_i);
+        Li *= zeus;
         f = make_float3(p);
         scattering_pdf = p;
         break;

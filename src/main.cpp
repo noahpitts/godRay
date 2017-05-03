@@ -39,35 +39,35 @@
 using namespace optix;
 
 const char *const PROGRAM_NAME = "godRay";
-const unsigned int DEF_WIDTH = 640u;
-const unsigned int DEF_HEIGHT = 480u;
+const unsigned int DEF_WIDTH = 1280u;
+const unsigned int DEF_HEIGHT = 720u;
 unsigned int width = DEF_WIDTH;
 unsigned int height = DEF_HEIGHT;
 
 // SUN/SKY
 const float PHYSICAL_SUN_RADIUS = 0.004675f; // from Wikipedia
-const float DEF_SUN_RADIUS = 0.05f;      // Softer default to show off soft shadows
-const float DEF_SUN_THETA = 85.0f * M_PIf / 180.0f;
-const float DEF_SUN_PHI = 190.0f * M_PIf / 180.0f;
-const float DEF_OVERCAST = 0.3f;
+const float DEF_SUN_RADIUS = 0.20f;      // Softer default to show off soft shadows
+const float DEF_SUN_THETA = 70.0f * M_PIf / 180.0f;
+const float DEF_SUN_PHI = 90.0f * M_PIf / 180.0f;
+const float DEF_OVERCAST = 0.60f;
 float sun_radius = DEF_SUN_RADIUS;
 float sun_theta = DEF_SUN_THETA;
 float sun_phi = DEF_SUN_PHI;
 float sun_overcast = DEF_OVERCAST;
 
 // OBJ matl diffuse Kd
-const float DIFFUSE_CONST = 0.8f;
+const float DIFFUSE_CONST = 0.85f;
 
 // ATMOSPHERE
 // In scattering parameter
 const float MIN_ATMOS_SIGMA_S = 0.0001f;
-const float DEF_ATMOS_SIGMA_S = 0.0015f;
+const float DEF_ATMOS_SIGMA_S = 0.0010f;
 const float MAX_ATMOS_SIGMA_S = 0.0100f;
 float atmos_sigma_s = DEF_ATMOS_SIGMA_S;
 
 // Extinction parameter
 const float MIN_ATMOS_SIGMA_T = 0.0001f;
-const float DEF_ATMOS_SIGMA_T = 0.0015f;
+const float DEF_ATMOS_SIGMA_T = 0.0010f;
 const float MAX_ATMOS_SIGMA_T = 0.0100f;
 float atmos_sigma_t = DEF_ATMOS_SIGMA_T;
 
@@ -84,24 +84,29 @@ const float MAX_ATMOS_DIST    = 100.00f;
 float atmos_dist = DEF_ATMOS_DIST;
 
 // CAMERA
-const float MIN_APERATURE = 1 / 32.0f;
-const float DEF_APERATURE = 1 / 8.0f;
-const float MAX_APERATURE = 1 / 2.0f;
-float cam_aperature = DEF_APERATURE;
+//const float MIN_APERATURE = 1 / 32.0f;
+//const float DEF_APERATURE = 1 / 8.0f;
+//const float MAX_APERATURE = 1 / 2.0f;
+//float cam_aperature = DEF_APERATURE;
 
 const float MIN_EXPOSURE =    1.0f;
-const float DEF_EXPOSURE =   25.0f;
+const float DEF_EXPOSURE =   50.0f;
 const float MAX_EXPOSURE = 1000.0f;
 float cam_exposure = DEF_EXPOSURE;
 
-const float3 DEF_CAM_POSITION = make_float3(0.0f, 0.0f, -150.0f);
+const float MIN_ZEUS =   1.0f;
+const float DEF_ZEUS =  50.0f;
+const float MAX_ZEUS = 100.0f;
+float cam_zeus = DEF_ZEUS;
+
+const float3 DEF_CAM_POSITION = make_float3(0.0f, 0.0f, -80.0f);
 const float3 DEF_CAM_TARGET = make_float3(0.0f, 48.0f, -400.0f);
 float3 cam_position = DEF_CAM_POSITION;
 float3 cam_target = DEF_CAM_TARGET;
 
 // RENDERER
 const int MIN_MAXDEPTH =  1;
-const int DEF_MAXDEPTH =  5;
+const int DEF_MAXDEPTH =  6;
 const int MAX_MAXDEPTH = 10;
 int maxdepth = DEF_MAXDEPTH;
 
@@ -182,8 +187,9 @@ void createContext(bool use_pbo)
   context["atmos_dist"]->setFloat(atmos_dist);
 
   // Set Global Camera Paramters
-  context["aper"]->setFloat(cam_aperature);
+  //context["aper"]->setFloat(cam_aperature);
   context["exposure"]->setFloat(cam_exposure);
+  context["zeus"]->setFloat(make_float3(cam_zeus));
 
   Buffer buffer = sutil::createOutputBuffer(context, RT_FORMAT_UNSIGNED_BYTE4, width, height, use_pbo);
   context["output_buffer"]->set(buffer);
@@ -211,7 +217,7 @@ void createLights(sutil::PreethamSunSky &sky, DirectionalLight &sun, Buffer &lig
   context->setMissProgram(RADIANCE, context->createProgramFromPTXFile(material_ptx, "radiance_miss"));
   context->setMissProgram(SHADOW, context->createProgramFromPTXFile(material_ptx, "shadow_miss"));
 
-  sky.setSunTheta(0.5f * M_PIf - sun_theta); // 0: noon, pi/2: sunset
+  sky.setSunTheta(sun_theta);
   sky.setSunPhi(sun_phi);
   sky.setTurbidity(2.2f);
   sky.setOvercast(sun_overcast);
@@ -248,7 +254,7 @@ Geometry createBox(float3 boxmin, float3 boxmax)
 
   box["boxmin"]->setFloat( boxmin );
   box["boxmax"]->setFloat( boxmax );
-  
+
   return box;
 }
 
@@ -284,13 +290,6 @@ void createGeometry()
 
   GeometryGroup geometry_group = context->createGeometryGroup();
   geometry_group->setAcceleration(context->createAcceleration("Trbvh"));
-  
-  //Geometry floor = createBox( make_float3(-2048.0f,-1.0f,-2048.0f), make_float3(2048.0f,0.0f,2048.0f) );
-  //Material floor_matl = createPhongMaterial( make_float3(DIFFUSE_CONST) );
-  //gis.push_back( context->createGeometryInstance( floor, &floor_matl, &floor_matl+1 ) );
-
-  //GeometryGroup media_group = context->createGeometryGroup();
-  //media_group->setAcceleration(context->createAcceleration("None"));
 
   // Load mesh
   OptiXMesh mesh;
@@ -299,9 +298,8 @@ void createGeometry()
   mesh.bounds = context->createProgramFromPTXFile( geometry_ptx, "mesh_bounds" );
   mesh.material = createPhongMaterial( make_float3(DIFFUSE_CONST) );
   Matrix4x4 xform = Matrix4x4::identity();
- 
-  //loadMesh( std::string( sutil::samplesDir() ) + "/godRay/model/obj/dome_simple.obj", mesh, xform );
-  loadMesh(std::string(sutil::samplesDir()) + "/godRay/model/obj/temple_midres_mesh.obj", mesh, xform);
+
+  loadMesh(std::string(sutil::samplesDir()) + "/godRay/model/obj/temple_highres_mesh.obj", mesh, xform);
   gis.push_back(mesh.geom_instance);
 
   geometry_group->setChildCount( static_cast<unsigned int>(gis.size()) );
@@ -409,6 +407,34 @@ GLFWwindow *glfwInitialize()
   return window;
 }
 
+void frameCounter(unsigned int frame_count, unsigned int accumulation_frame)
+{
+  static double fps = -1.0;
+  static unsigned last_frame_count = 0;
+  static double last_update_time = sutil::currentTime();
+  static double current_time = 0.0;
+  current_time = sutil::currentTime();
+  if ( current_time - last_update_time > 0.5f ) {
+    fps = ( frame_count - last_frame_count ) / ( current_time - last_update_time );
+    last_frame_count = frame_count;
+    last_update_time = current_time;
+  }
+  if ( frame_count > 0 && fps >= 0.0 ) {
+
+    ImGui::SetNextWindowPos( ImVec2( 2.0f, 2.0f ) );
+    ImGui::Begin("fps", 0,
+        ImGuiWindowFlags_NoTitleBar |
+        ImGuiWindowFlags_AlwaysAutoResize |
+        ImGuiWindowFlags_NoMove |
+        ImGuiWindowFlags_NoScrollbar |
+        ImGuiWindowFlags_NoInputs
+        );
+    ImGui::Text( "fps: %7.2f", fps );
+    ImGui::Text( "accum: %d", accumulation_frame );
+    ImGui::End();
+  }
+}
+
 void glfwRun(GLFWwindow *window, sutil::Camera &camera, sutil::PreethamSunSky &sky, DirectionalLight &sun, Buffer light_buffer)
 {
   // Initialize GL state
@@ -477,7 +503,7 @@ void glfwRun(GLFWwindow *window, sutil::Camera &camera, sutil::PreethamSunSky &s
     ImGui::PushStyleColor(ImGuiCol_HeaderHovered, ImColor(150, 150, 150, 150));
     ImGui::PushStyleColor(ImGuiCol_HeaderActive, ImColor(30, 150, 250, 200));
 
-    sutil::displayFps(frame_count++);
+    frameCounter(frame_count++, accumulation_frame);
 
     {
       static const ImGuiWindowFlags window_flags =
@@ -489,14 +515,14 @@ void glfwRun(GLFWwindow *window, sutil::Camera &camera, sutil::PreethamSunSky &s
         ImGuiTreeNodeFlags_OpenOnDoubleClick |
         ImGuiTreeNodeFlags_OpenOnArrow;
 
-      ImGui::SetNextWindowPos(ImVec2(2.0f, 40.0f));
+      ImGui::SetNextWindowPos(ImVec2(2.0f, 60.0f));
       ImGui::Begin("Controls", 0, window_flags);
 
       // Sun and Sky Control
       if (ImGui::CollapsingHeader(" Sun & Sky", header_flags)) {
         bool sun_changed = false;
         // Sun Rotation Control
-        if (ImGui::SliderAngle("sun rotation", &sun_phi, 0.0f, 360.0f))
+        if (ImGui::SliderFloat("sun rotation", &sun_phi, 0.0f, 2.0f * M_PIf))
         {
           sky.setSunPhi(sun_phi);
           sky.setVariables(context);
@@ -504,9 +530,9 @@ void glfwRun(GLFWwindow *window, sutil::Camera &camera, sutil::PreethamSunSky &s
           sun_changed = true;
         }
         // Sun Elevation Control
-        if (ImGui::SliderAngle("sun elevation", &sun_theta, 0.0f, 180.0f))
+        if (ImGui::SliderFloat("sun elevation", &sun_theta, 0.0f, 0.5f*M_PIf))
         {
-          sky.setSunTheta(0.5f * M_PIf - sun_theta);
+          sky.setSunTheta(sun_theta);
           sky.setVariables(context);
           sun.direction = sky.getSunDir();
           sun_changed = true;
@@ -562,23 +588,28 @@ void glfwRun(GLFWwindow *window, sutil::Camera &camera, sutil::PreethamSunSky &s
         }
       }
       // Camera Control
-      if (ImGui::CollapsingHeader(" Camera", header_flags)) {
+      if (ImGui::CollapsingHeader(" Tonemap", header_flags)) {
         //TODO: find a better representation for the aperature scale
-        if (ImGui::SliderFloat("aperature", &cam_aperature, MIN_APERATURE, MAX_APERATURE))
-        {
-          context["aper"]->setFloat(cam_aperature);
-          accumulation_frame = 0;
-        }
+        //if (ImGui::SliderFloat("aperature", &cam_aperature, MIN_APERATURE, MAX_APERATURE))
+        //{
+        //  context["aper"]->setFloat(cam_aperature);
+        //  accumulation_frame = 0;
+        //}
         // Tonemap control
-        if (ImGui::SliderFloat("tonemap", &cam_exposure, MIN_EXPOSURE, MAX_EXPOSURE))
+        if (ImGui::SliderFloat("exposure", &cam_exposure, MIN_EXPOSURE, MAX_EXPOSURE))
         {
           context["exposure"]->setFloat(cam_exposure);
+          accumulation_frame = 0;
+        }
+        if (ImGui::SliderFloat("zeus", &cam_zeus, MIN_ZEUS, MAX_ZEUS))
+        {
+          context["zeus"]->setFloat(make_float3(cam_zeus));
           accumulation_frame = 0;
         }
       }
       // Renderer Control
       if (ImGui::CollapsingHeader(" Renderer", header_flags)) {
-        if (ImGui::SliderInt("max depth", &maxdepth, 1, 25)) {
+        if (ImGui::SliderInt("max depth", &maxdepth, MIN_MAXDEPTH, MAX_MAXDEPTH)) {
           context["max_depth"]->setInt(maxdepth);
           accumulation_frame = 0;
         }

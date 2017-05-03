@@ -1,0 +1,10 @@
+#!/bin/python3
+
+import subprocess
+
+DEBUG = False
+version = "Debug" if DEBUG else "Release"
+program = "godRay.exe"
+exec_path = "/cygdrive/c/ProgramData/NVIDIA Corporation/OptiX SDK 4.0.2/optix_advanced_samples/build/bin/{}/{}".format(version, program)
+
+subprocess.call([exec_path])
