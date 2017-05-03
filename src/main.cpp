@@ -299,7 +299,7 @@ void createGeometry()
   mesh.material = createPhongMaterial( make_float3(DIFFUSE_CONST) );
   Matrix4x4 xform = Matrix4x4::identity();
 
-  loadMesh(std::string(sutil::samplesDir()) + "/godRay/model/obj/temple_highres_mesh.obj", mesh, xform);
+  loadMesh(std::string(sutil::samplesDir()) + "/godRay/model/obj/temple_highres_video.obj", mesh, xform);
   gis.push_back(mesh.geom_instance);
 
   geometry_group->setChildCount( static_cast<unsigned int>(gis.size()) );
