@@ -12,13 +12,13 @@ exec_path = "./godRay.exe"
 
 f_fmt = ("./raw/frame_{:0>4d}.png").format
 kwargs = {
-    "-nf" : "1000",
-    "-wh" : ["400", "250"]
+    "-nf" : "10000",
+    "-wh" : ["1280", "720"]
 }
 
 start_frame = 0
 num_frames = 200
-step_size = 10
+step_size = 8
 
 #camera_start =
 
@@ -40,7 +40,7 @@ for i in range(start_frame,num_frames+step_size,step_size):
     t2 =  80  * math.pi / 180
 
     p1 = 0   * math.pi / 180
-    p2 = 300 * math.pi / 180
+    p2 = 330 * math.pi / 180
 
     p = p1*u + p2*(1-u)
 
