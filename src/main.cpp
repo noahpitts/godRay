@@ -47,7 +47,7 @@ unsigned int height = DEF_HEIGHT;
 
 // SUN/SKY
 const float PHYSICAL_SUN_RADIUS = 0.004675f; // from Wikipedia
-const float DEF_SUN_RADIUS = 0.20f;      // Softer default to show off soft shadows
+const float DEF_SUN_RADIUS = 0.20f;          // Softer default to show off soft shadows
 const float DEF_SUN_THETA = 70.0f * M_PIf / 180.0f;
 const float DEF_SUN_PHI = 90.0f * M_PIf / 180.0f;
 const float DEF_OVERCAST = 0.60f;
@@ -73,15 +73,15 @@ const float MAX_ATMOS_SIGMA_T = 0.0100f;
 float atmos_sigma_t = DEF_ATMOS_SIGMA_T;
 
 // G parameter
-const float MIN_ATMOS_G       = -1.00f;
-const float DEF_ATMOS_G       =  0.10f;
-const float MAX_ATMOS_G       =  1.00f; 
+const float MIN_ATMOS_G = -1.00f;
+const float DEF_ATMOS_G = 0.10f;
+const float MAX_ATMOS_G = 1.00f;
 float atmos_g = DEF_ATMOS_G;
 
 // Atmosphere distance parameter
-const float MIN_ATMOS_DIST    =   0.10f;
-const float DEF_ATMOS_DIST    =   1.00f;
-const float MAX_ATMOS_DIST    = 100.00f;
+const float MIN_ATMOS_DIST = 0.10f;
+const float DEF_ATMOS_DIST = 1.00f;
+const float MAX_ATMOS_DIST = 100.00f;
 float atmos_dist = DEF_ATMOS_DIST;
 
 // CAMERA
@@ -90,24 +90,24 @@ float atmos_dist = DEF_ATMOS_DIST;
 //const float MAX_APERATURE = 1 / 2.0f;
 //float cam_aperature = DEF_APERATURE;
 
-const float MIN_EXPOSURE =    1.0f;
-const float DEF_EXPOSURE =   50.0f;
+const float MIN_EXPOSURE = 1.0f;
+const float DEF_EXPOSURE = 50.0f;
 const float MAX_EXPOSURE = 1000.0f;
 float cam_exposure = DEF_EXPOSURE;
 
-const float MIN_ZEUS =   1.0f;
-const float DEF_ZEUS =  50.0f;
+const float MIN_ZEUS = 1.0f;
+const float DEF_ZEUS = 50.0f;
 const float MAX_ZEUS = 100.0f;
 float cam_zeus = DEF_ZEUS;
 
-const float3 DEF_CAM_POSITION = make_float3(-60.0f, -40.0f, -250.0f);
+const float3 DEF_CAM_POSITION = make_float3(40.0f, 110.0f, 0.0f);
 const float3 DEF_CAM_TARGET = make_float3(0.0f, 40.0f, -400.0f);
 float3 cam_position = DEF_CAM_POSITION;
 float3 cam_target = DEF_CAM_TARGET;
 
 // RENDERER
-const int MIN_MAXDEPTH =  1;
-const int DEF_MAXDEPTH =  6;
+const int MIN_MAXDEPTH = 1;
+const int DEF_MAXDEPTH = 6;
 const int MAX_MAXDEPTH = 10;
 int maxdepth = DEF_MAXDEPTH;
 
@@ -115,7 +115,8 @@ const unsigned int DEF_NUMFRAMES = 800u;
 unsigned int numframes = DEF_NUMFRAMES;
 
 // Ray Types
-enum RAY_TYPE {
+enum RAY_TYPE
+{
   RADIANCE = 0,
   SHADOW,
   NUM_RAYS
@@ -138,9 +139,9 @@ Context context = 0;
 static std::string ptxPath(const std::string &cuda_file)
 {
   return std::string(sutil::samplesPTXDir()) +
-    "/" + std::string(PROGRAM_NAME) + "_generated_" +
-    cuda_file +
-    ".ptx";
+         "/" + std::string(PROGRAM_NAME) + "_generated_" +
+         cuda_file +
+         ".ptx";
 }
 
 // PATHS
@@ -168,7 +169,7 @@ void createContext(bool use_pbo)
   context = Context::create();
   context->setRayTypeCount(NUM_RAYS);
   context->setEntryPointCount(1);
-  context->setStackSize(1200);     // TODO: debug for optimal stack size
+  context->setStackSize(1200); // TODO: debug for optimal stack size
 
   context["frame"]->setUint(0u);
   context["scene_epsilon"]->setFloat(1.e-3f);
@@ -219,7 +220,7 @@ void createContext(bool use_pbo)
 
   // Accumulation buffer
   Buffer accum_buffer = context->createBuffer(RT_BUFFER_INPUT_OUTPUT | RT_BUFFER_GPU_LOCAL,
-      RT_FORMAT_FLOAT4, width, height);
+                                              RT_FORMAT_FLOAT4, width, height);
   context["accum_buffer"]->set(accum_buffer);
 
   // Ray generation program
@@ -267,16 +268,16 @@ void createLights(sutil::PreethamSunSky &sky, DirectionalLight &sun, Buffer &lig
 Geometry createBox(float3 boxmin, float3 boxmax)
 {
   Geometry box = context->createGeometry();
-  box->setPrimitiveCount( 1u );
+  box->setPrimitiveCount(1u);
 
-  Program box_bounds = context->createProgramFromPTXFile( geometry_ptx, "box_bounds" );
-  Program box_intersect = context->createProgramFromPTXFile( geometry_ptx, "box_intersect" );
+  Program box_bounds = context->createProgramFromPTXFile(geometry_ptx, "box_bounds");
+  Program box_intersect = context->createProgramFromPTXFile(geometry_ptx, "box_intersect");
 
-  box->setBoundingBoxProgram( box_bounds );
-  box->setIntersectionProgram( box_intersect );
+  box->setBoundingBoxProgram(box_bounds);
+  box->setIntersectionProgram(box_intersect);
 
-  box["boxmin"]->setFloat( boxmin );
-  box["boxmax"]->setFloat( boxmax );
+  box["boxmin"]->setFloat(boxmin);
+  box["boxmax"]->setFloat(boxmax);
 
   return box;
 }
@@ -293,17 +294,17 @@ Geometry createBox(float3 boxmin, float3 boxmax)
 //  return matl;
 //}
 
-Material createPhongMaterial( float3 Kd )
+Material createPhongMaterial(float3 Kd)
 {
   Material matl = context->createMaterial();
 
-  Program ch = context->createProgramFromPTXFile( material_ptx, "diffuse_hit_radiance" );
-  matl->setClosestHitProgram( RADIANCE, ch );
+  Program ch = context->createProgramFromPTXFile(material_ptx, "diffuse_hit_radiance");
+  matl->setClosestHitProgram(RADIANCE, ch);
 
-  Program ah = context->createProgramFromPTXFile( material_ptx, "diffuse_hit_shadow" );
-  matl->setAnyHitProgram( SHADOW, ah );
+  Program ah = context->createProgramFromPTXFile(material_ptx, "diffuse_hit_shadow");
+  matl->setAnyHitProgram(SHADOW, ah);
 
-  matl["Kd"]->setFloat( Kd );
+  matl["Kd"]->setFloat(Kd);
   return matl;
 }
 
@@ -317,16 +318,17 @@ void createGeometry()
   // Load mesh
   OptiXMesh mesh;
   mesh.context = context;
-  mesh.intersection = context->createProgramFromPTXFile( geometry_ptx, "mesh_intersect" );
-  mesh.bounds = context->createProgramFromPTXFile( geometry_ptx, "mesh_bounds" );
-  mesh.material = createPhongMaterial( make_float3(DIFFUSE_CONST) );
+  mesh.intersection = context->createProgramFromPTXFile(geometry_ptx, "mesh_intersect");
+  mesh.bounds = context->createProgramFromPTXFile(geometry_ptx, "mesh_bounds");
+  mesh.material = createPhongMaterial(make_float3(DIFFUSE_CONST));
   Matrix4x4 xform = Matrix4x4::identity();
 
   loadMesh(std::string(sutil::samplesDir()) + "/godRay/model/obj/temple_highres_video.obj", mesh, xform);
   gis.push_back(mesh.geom_instance);
 
-  geometry_group->setChildCount( static_cast<unsigned int>(gis.size()) );
-  for(int i = 0; i < gis.size(); ++i) geometry_group->setChild( i, gis[i] );
+  geometry_group->setChildCount(static_cast<unsigned int>(gis.size()));
+  for (int i = 0; i < gis.size(); ++i)
+    geometry_group->setChild(i, gis[i]);
 
   //context["top_media"]->set(geometry_group);
   //context["top_geometry"]->set(geometry_group);
@@ -353,6 +355,7 @@ void keyCallback(GLFWwindow *window, int key, int scancode, int action, int mods
   {
     switch (key)
     {
+<<<<<<< HEAD
       case GLFW_KEY_Q:
       case GLFW_KEY_ESCAPE:
         if (context)
@@ -378,6 +381,33 @@ void keyCallback(GLFWwindow *window, int key, int scancode, int action, int mods
           handled = true;
           break;
         }
+=======
+    case GLFW_KEY_Q:
+    case GLFW_KEY_ESCAPE:
+      if (context)
+        context->destroy();
+      if (window)
+        glfwDestroyWindow(window);
+      glfwTerminate();
+      exit(EXIT_SUCCESS);
+
+    case (GLFW_KEY_S):
+    {
+      const std::string outputImage = std::string(PROGRAM_NAME) + ".png";
+      std::cerr << "Saving current frame to '" << outputImage << "'\n";
+      sutil::writeBufferToFile(outputImage.c_str(), getOutputBuffer());
+      handled = true;
+      break;
+    }
+    case (GLFW_KEY_F):
+    {
+      CallbackData *cb = static_cast<CallbackData *>(glfwGetWindowUserPointer(window));
+      cb->camera.reset_lookat();
+      cb->accumulation_frame = 0;
+      handled = true;
+      break;
+    }
+>>>>>>> f229859a957e681d82a61075d10dcdaf1865c6ef
     }
   }
 
@@ -437,23 +467,24 @@ void frameCounter(unsigned int frame_count, unsigned int accumulation_frame)
   static double last_update_time = sutil::currentTime();
   static double current_time = 0.0;
   current_time = sutil::currentTime();
-  if ( current_time - last_update_time > 0.5f ) {
-    fps = ( frame_count - last_frame_count ) / ( current_time - last_update_time );
+  if (current_time - last_update_time > 0.5f)
+  {
+    fps = (frame_count - last_frame_count) / (current_time - last_update_time);
     last_frame_count = frame_count;
     last_update_time = current_time;
   }
-  if ( frame_count > 0 && fps >= 0.0 ) {
+  if (frame_count > 0 && fps >= 0.0)
+  {
 
-    ImGui::SetNextWindowPos( ImVec2( 2.0f, 2.0f ) );
+    ImGui::SetNextWindowPos(ImVec2(2.0f, 2.0f));
     ImGui::Begin("fps", 0,
-        ImGuiWindowFlags_NoTitleBar |
-        ImGuiWindowFlags_AlwaysAutoResize |
-        ImGuiWindowFlags_NoMove |
-        ImGuiWindowFlags_NoScrollbar |
-        ImGuiWindowFlags_NoInputs
-        );
-    ImGui::Text( "fps: %7.2f", fps );
-    ImGui::Text( "accum: %d", accumulation_frame );
+                 ImGuiWindowFlags_NoTitleBar |
+                     ImGuiWindowFlags_AlwaysAutoResize |
+                     ImGuiWindowFlags_NoMove |
+                     ImGuiWindowFlags_NoScrollbar |
+                     ImGuiWindowFlags_NoInputs);
+    ImGui::Text("fps: %7.2f", fps);
+    ImGui::Text("accum: %d", accumulation_frame);
     ImGui::End();
   }
 }
@@ -530,19 +561,20 @@ void glfwRun(GLFWwindow *window, sutil::Camera &camera, sutil::PreethamSunSky &s
 
     {
       static const ImGuiWindowFlags window_flags =
-        ImGuiWindowFlags_AlwaysAutoResize |
-        ImGuiWindowFlags_NoMove |
-        ImGuiWindowFlags_NoScrollbar;
+          ImGuiWindowFlags_AlwaysAutoResize |
+          ImGuiWindowFlags_NoMove |
+          ImGuiWindowFlags_NoScrollbar;
 
       static const ImGuiWindowFlags header_flags =
-        ImGuiTreeNodeFlags_OpenOnDoubleClick |
-        ImGuiTreeNodeFlags_OpenOnArrow;
+          ImGuiTreeNodeFlags_OpenOnDoubleClick |
+          ImGuiTreeNodeFlags_OpenOnArrow;
 
       ImGui::SetNextWindowPos(ImVec2(2.0f, 60.0f));
       ImGui::Begin("Controls", 0, window_flags);
 
       // Sun and Sky Control
-      if (ImGui::CollapsingHeader(" Sun & Sky", header_flags)) {
+      if (ImGui::CollapsingHeader(" Sun & Sky", header_flags))
+      {
         bool sun_changed = false;
         // Sun Rotation Control
         if (ImGui::SliderFloat("sun rotation", &sun_phi, 0.0f, 2.0f * M_PIf))
@@ -553,7 +585,7 @@ void glfwRun(GLFWwindow *window, sutil::Camera &camera, sutil::PreethamSunSky &s
           sun_changed = true;
         }
         // Sun Elevation Control
-        if (ImGui::SliderFloat("sun elevation", &sun_theta, 0.0f, 0.5f*M_PIf))
+        if (ImGui::SliderFloat("sun elevation", &sun_theta, 0.0f, 0.5f * M_PIf))
         {
           sky.setSunTheta(sun_theta);
           sky.setVariables(context);
@@ -588,7 +620,8 @@ void glfwRun(GLFWwindow *window, sutil::Camera &camera, sutil::PreethamSunSky &s
         }
       }
       // Atmosphere Control
-      if (ImGui::CollapsingHeader(" Atmosphere", header_flags)) {
+      if (ImGui::CollapsingHeader(" Atmosphere", header_flags))
+      {
         if (ImGui::SliderFloat("in scattering", &atmos_sigma_s, MIN_ATMOS_SIGMA_S, MAX_ATMOS_SIGMA_S))
         {
           context["atmos_sigma_s"]->setFloat(make_float3(atmos_sigma_s));
@@ -611,7 +644,8 @@ void glfwRun(GLFWwindow *window, sutil::Camera &camera, sutil::PreethamSunSky &s
         }
       }
       // Camera Control
-      if (ImGui::CollapsingHeader(" Tonemap", header_flags)) {
+      if (ImGui::CollapsingHeader(" Tonemap", header_flags))
+      {
         //TODO: find a better representation for the aperature scale
         //if (ImGui::SliderFloat("aperature", &cam_aperature, MIN_APERATURE, MAX_APERATURE))
         //{
@@ -631,8 +665,10 @@ void glfwRun(GLFWwindow *window, sutil::Camera &camera, sutil::PreethamSunSky &s
         }
       }
       // Renderer Control
-      if (ImGui::CollapsingHeader(" Renderer", header_flags)) {
-        if (ImGui::SliderInt("max depth", &maxdepth, MIN_MAXDEPTH, MAX_MAXDEPTH)) {
+      if (ImGui::CollapsingHeader(" Renderer", header_flags))
+      {
+        if (ImGui::SliderInt("max depth", &maxdepth, MIN_MAXDEPTH, MAX_MAXDEPTH))
+        {
           context["max_depth"]->setInt(maxdepth);
           accumulation_frame = 0;
         }
@@ -670,40 +706,41 @@ void printUsageAndExit(const std::string &argv0)
 {
   std::cerr << "\nUsage: " << argv0 << " [options] [file0.vox] [file1.vox] ...\n";
   std::cerr << "App Options:\n"
-    "  -h | --help                  Print this usage message and exit.\n"
-    "  -f | --file <output_file>    Save image to file and exit.\n"
-    "  -n | --nopbo                 Disable GL interop for display buffer.\n"
+               "  -h | --help                  Print this usage message and exit.\n"
+               "  -f | --file <output_file>    Save image to file and exit.\n"
+               "  -n | --nopbo                 Disable GL interop for display buffer.\n"
 
-    "  -nf | --num_frames           \n"
-    "  -md | --max_depth            \n"
-    "  -nf | --num_frames           \n"
-    "  -wh | --width_height         \n"
+               "  -nf | --num_frames           \n"
+               "  -md | --max_depth            \n"
+               "  -nf | --num_frames           \n"
+               "  -wh | --width_height         \n"
 
-    "  -as | --atmos_in_scatter     \n"
-    "  -ae | --atmos_extinction     \n"
-    "  -ad | --atmos_dist           \n"
+               "  -as | --atmos_in_scatter     \n"
+               "  -ae | --atmos_extinction     \n"
+               "  -ad | --atmos_dist           \n"
 
-    "  -ce | --cam_exposure         \n"
-    "  -cp | --cam_position         \n"
-    "  -ct | --cam_target           \n"
+               "  -ce | --cam_exposure         \n"
+               "  -cp | --cam_position         \n"
+               "  -ct | --cam_target           \n"
 
-    "  -sr | --sun_radius           \n"
-    "  -st | --sun_theta            \n"
-    "  -sp | --sun_phi              \n"
+               "  -sr | --sun_radius           \n"
+               "  -st | --sun_theta            \n"
+               "  -sp | --sun_phi              \n"
 
-    "App Keystrokes:\n"
-    "  q  Quit\n"
-    "  s  Save image to '" << PROGRAM_NAME << ".png'\n"
-    "  f  Re-center camera\n"
-    "\n"
-    << std::endl;
+               "App Keystrokes:\n"
+               "  q  Quit\n"
+               "  s  Save image to '"
+            << PROGRAM_NAME << ".png'\n"
+                               "  f  Re-center camera\n"
+                               "\n"
+            << std::endl;
 
   exit(1);
 }
 
 void missing_arg(int i, int argc, int n, const std::string arg, const std::string prog)
 {
-  if(i == argc-n)
+  if (i == argc - n)
   {
     std::cerr << "Option '" << arg << "' requires " << n << " additional argument.\n";
     printUsageAndExit(prog);
@@ -733,8 +770,8 @@ int main(int argc, char **argv)
     {
       use_pbo = false;
     }
-    else if (arg == "-nf" || arg == "--num_frames") 
-    { 
+    else if (arg == "-nf" || arg == "--num_frames")
+    {
       missing_arg(i, argc, 1, arg, prog);
       numframes = atoi(argv[++i]);
     }
@@ -743,8 +780,8 @@ int main(int argc, char **argv)
       missing_arg(i, argc, 1, arg, prog);
       maxdepth = atoi(argv[++i]);
     }
-    else if (arg == "-wh" || arg == "--width_height") 
-    { 
+    else if (arg == "-wh" || arg == "--width_height")
+    {
       missing_arg(i, argc, 2, arg, prog);
       width = atoi(argv[++i]);
       height = atoi(argv[++i]);
@@ -772,12 +809,15 @@ int main(int argc, char **argv)
     else if (arg == "-cp" || arg == "--cam_position")
     {
       missing_arg(i, argc, 3, arg, prog);
-      cam_position = make_float3( atof(argv[++i]), atof(argv[++i]), atof(argv[++i]));
+      float cx = (float)atof(argv[++i]);
+      float cy = (float)atof(argv[++i]);
+      float cz = (float)atof(argv[++i]);
+      cam_position = make_float3(cx, cy, cz);
     }
     else if (arg == "-ct" || arg == "--cam_target")
     {
       missing_arg(i, argc, 3, arg, prog);
-      cam_target = make_float3( atof(argv[++i]), atof(argv[++i]), atof(argv[++i]));
+      cam_target = make_float3(atof(argv[++i]), atof(argv[++i]), atof(argv[++i]));
     }
     else if (arg == "-sr" || arg == "--sun_radius")
     {
@@ -825,14 +865,13 @@ int main(int argc, char **argv)
 
     context->validate();
 
-    const optix::float3 camera_eye(cam_position); //optix::make_float3(0.0f, 0.0f, -150.0f));
+    const optix::float3 camera_eye(cam_position);  //optix::make_float3(0.0f, 0.0f, -150.0f));
     const optix::float3 camera_lookat(cam_target); //optix::make_float3(0.0f, 48.0f, -400.0f));
     const optix::float3 camera_up(optix::make_float3(0.0f, 1.0f, 0.0f));
 
     sutil::Camera camera(width, height,
-        &camera_eye.x, &camera_lookat.x, &camera_up.x,
-        context["eye"], context["U"], context["V"], context["W"]);
-
+                         &camera_eye.x, &camera_lookat.x, &camera_up.x,
+                         context["eye"], context["U"], context["V"], context["W"]);
 
     // RUN IN WINDOW
     if (out_file.empty())
@@ -848,7 +887,7 @@ int main(int argc, char **argv)
       for (unsigned int frame = 0; frame < numframes; ++frame)
       {
         if (frame % 100 == 0)
-            std::cerr << "Frame: " << frame << std::endl;
+          std::cerr << "Frame: " << frame << std::endl;
         context["frame"]->setUint(frame);
         context->launch(0, width, height);
       }
