@@ -824,6 +824,8 @@ int main(int argc, char **argv)
       std::cerr << "Accumulating " << numframes << " frames ..." << std::endl;
       for (unsigned int frame = 0; frame < numframes; ++frame)
       {
+        if (frame % 100 == 0)
+            std::cerr << "Frame: " << frame << std::endl;
         context["frame"]->setUint(frame);
         context->launch(0, width, height);
       }

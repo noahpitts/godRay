@@ -1,14 +1,13 @@
-#!/bin/python3
 
 import subprocess
 import math
 
-DEBUG = False
+DEBUG = True
 version = "Debug" if DEBUG else "Release"
 program = "godRay.exe"
-out_path = "raw/"
+out_path = "./raw/"
 
-exec_path = "C:/Users/Noah Pitts/Desktop/godRay_build4/bin/{}/{}".format(version, program)
+exec_path = "../../../godRay_build4/bin/{}/{}".format(version, program)
 
 
 f_fmt = ("raw/output_{:0>4d}.png").format
