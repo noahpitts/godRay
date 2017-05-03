@@ -54,7 +54,7 @@ for i in range(start_frame,num_frames+step_size,step_size):
 
     kwargs["-st"] = "{:.4f}".format(t)
     kwargs["-sp"] = "{:.4f}".format(p)
-    kwargs["-cp"] = ["{:.4f}".format(cx), "{:.4f}".format(cy), "{:.4f}".format(cz)]
+    # kwargs["-cp"] = ["{:.4f}".format(cx), "{:.4f}".format(cy), "{:.4f}".format(cz)]
     kwargs["-f"] = f_fmt(i)
 
     args = [exec_path]
