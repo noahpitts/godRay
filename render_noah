@@ -16,9 +16,9 @@ kwargs = {
     "-wh" : ["1280", "720"]
 }
 
-start_frame = 0
+start_frame = 1
 num_frames = 200
-step_size = 8
+step_size = 2
 
 #camera_start =
 
