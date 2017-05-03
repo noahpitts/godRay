@@ -99,8 +99,8 @@ const float DEF_ZEUS =  50.0f;
 const float MAX_ZEUS = 100.0f;
 float cam_zeus = DEF_ZEUS;
 
-const float3 DEF_CAM_POSITION = make_float3(0.0f, 0.0f, -80.0f);
-const float3 DEF_CAM_TARGET = make_float3(0.0f, 48.0f, -400.0f);
+const float3 DEF_CAM_POSITION = make_float3(-60.0f, -40.0f, -250.0f);
+const float3 DEF_CAM_TARGET = make_float3(0.0f, 40.0f, -400.0f);
 float3 cam_position = DEF_CAM_POSITION;
 float3 cam_target = DEF_CAM_TARGET;
 
