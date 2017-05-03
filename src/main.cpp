@@ -34,6 +34,7 @@
 #include <stdexcept>
 #include <stdint.h>
 
+#include "../inc/perlin.h"
 #include "../inc/commonStructs.h"
 
 using namespace optix;
@@ -194,6 +195,28 @@ void createContext(bool use_pbo)
   Buffer buffer = sutil::createOutputBuffer(context, RT_FORMAT_UNSIGNED_BYTE4, width, height, use_pbo);
   context["output_buffer"]->set(buffer);
 
+  // Create gradient bufer
+  Perlin::initialize_grid();
+  int PS = Perlin::SIZE+1;
+  int PS2 = PS*PS;
+
+  Buffer gradient_buffer = context->createBuffer( RT_BUFFER_INPUT,
+      RT_FORMAT_FLOAT3, PS*PS*PS);
+  context["gradient_buffer"]->set(gradient_buffer);
+
+  float3* perlin_gradients = static_cast<float3*>(gradient_buffer->map());
+  for(int x = 0; x < PS; ++x) {
+    for(int y = 0; y < PS; ++y) {
+      for(int z = 0; z < PS; ++z) {
+        float *f = Perlin::G[x][y][z];
+        perlin_gradients[z*PS2+y*PS+x].x = f[0];
+        perlin_gradients[z*PS2+y*PS+x].y = f[1];
+        perlin_gradients[z*PS2+y*PS+x].z = f[2];
+      }
+    }
+  }
+  gradient_buffer->unmap();
+
   // Accumulation buffer
   Buffer accum_buffer = context->createBuffer(RT_BUFFER_INPUT_OUTPUT | RT_BUFFER_GPU_LOCAL,
       RT_FORMAT_FLOAT4, width, height);
@@ -338,8 +361,8 @@ void keyCallback(GLFWwindow *window, int key, int scancode, int action, int mods
           glfwDestroyWindow(window);
         glfwTerminate();
         exit(EXIT_SUCCESS);
-
-      case (GLFW_KEY_S):
+     
+      case (GLFW_KEY_P):
         {
           const std::string outputImage = std::string(PROGRAM_NAME) + ".png";
           std::cerr << "Saving current frame to '" << outputImage << "'\n";

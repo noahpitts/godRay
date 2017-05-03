@@ -24,16 +24,17 @@ namespace Perlin {
     z /= r;
   }
 
-  inline float p_lerp(float u, float v, float t) { return u + (v - u) * t; }
+  float p_lerp(float u, float v, float t) { return u + (v - u) * t; }
 
-  inline float dot_grid_grad(float fx, float fy, float fz, int ix, int iy, int iz) {
+  float dot_grid_grad(float fx, float fy, float fz, int ix, int iy, int iz) {
     float dx = fx - (float) ix;
     float dy = fy - (float) iy;
     float dz = fz - (float) iz;
-    return dx * G[ix][iy][iz][0] + dy * G[ix][iy][iz][1] + dz * G[ix][iy][iz][2];
+    float *v = G[ix][iy][iz];
+    return dx * v[0] + dy * v[1] + dz * v[2];
   }
 
-  inline float sample(float x, float y, float z) {
+  float sample(float x, float y, float z) {
     int x0 = (int) x; int x1 = x0 + 1; float sx = x - (float) x0;
     int y0 = (int) y; int y1 = y0 + 1; float sy = y - (float) y0;
     int z0 = (int) z; int z1 = z0 + 1; float sz = z - (float) z0;

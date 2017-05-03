@@ -2,9 +2,22 @@
 
 import subprocess
 
-DEBUG = False
+DEBUG = True
 version = "Debug" if DEBUG else "Release"
 program = "godRay.exe"
 exec_path = "/cygdrive/c/ProgramData/NVIDIA Corporation/OptiX SDK 4.0.2/optix_advanced_samples/build/bin/{}/{}".format(version, program)
 
-subprocess.call([exec_path])
+kwargs = {
+        '-wh' : [300, 200],
+        '-cp' : [0,-300,0]
+}
+
+args = [ exec_path ]
+for k in kwargs:
+    args.append(k)
+    if(isinstance(kwargs[k], list)):
+        args += list(map(str, kwargs[k]))
+    else:
+        args.append(kwargs[k])
+
+subprocess.call(args)

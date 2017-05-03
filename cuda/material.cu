@@ -5,12 +5,12 @@
 #include "../inc/random.h"
 #include "../inc/commonStructs.h"
 #include "../inc/prd.h"
+#include "../inc/perlin.h"
 
 using namespace optix;
 
 rtDeclareVariable(float3, object_geometric_normal, attribute object_geometric_normal, ); 
 rtDeclareVariable(float3, object_shading_normal, attribute object_shading_normal, ); 
-
 rtDeclareVariable(PerRayData_radiance, prd_radiance, rtPayload, );
 rtDeclareVariable(PerRayData_shadow, prd_shadow, rtPayload, );
 
@@ -31,6 +31,7 @@ rtDeclareVariable(rtObject, top_object, , );
 
 rtDeclareVariable(float3,   Kd, , );
 rtBuffer<DirectionalLight> light_buffer;
+rtBuffer<float3> gradient_buffer;
 
 rtDeclareVariable(float3, atmos_sigma_t, , );
 rtDeclareVariable(float3, atmos_sigma_s, , );
@@ -53,6 +54,46 @@ rtDeclareVariable(optix::float3, c4, ,);
 // --------------------------------------------------
 // HELPER FUNCTIONS
 // --------------------------------------------------
+
+__inline__ __device__ float p_lerp(float u, float v, float t) { return u + (v - u) * t; }
+
+__inline__ __device__ float dot_grid_grad(float fx, float fy, float fz, int ix, int iy, int iz) {
+  float dx = fx - (float) ix;
+  float dy = fy - (float) iy;
+  float dz = fz - (float) iz;
+  int PS = Perlin::SIZE+1;
+  int PS2 = PS*PS;
+  int index = iz * PS2 + iy * PS + ix;
+  const float3 &v = gradient_buffer[index];
+  return dx * v.x + dy * v.y + dz * v.z;
+}
+
+__inline__ __device__ float sample_perlin(float x, float y, float z) {
+  int x0 = (int) x; int x1 = x0 + 1; float sx = x - (float) x0;
+  int y0 = (int) y; int y1 = y0 + 1; float sy = y - (float) y0;
+  int z0 = (int) z; int z1 = z0 + 1; float sz = z - (float) z0;
+
+  float c000 = dot_grid_grad(x, y, z, x0, y0, z0);
+  float c001 = dot_grid_grad(x, y, z, x0, y0, z1);
+  float c010 = dot_grid_grad(x, y, z, x0, y1, z0);
+  float c011 = dot_grid_grad(x, y, z, x0, y1, z1);
+  float c100 = dot_grid_grad(x, y, z, x1, y0, z0);
+  float c101 = dot_grid_grad(x, y, z, x1, y0, z1);
+  float c110 = dot_grid_grad(x, y, z, x1, y1, z0);
+  float c111 = dot_grid_grad(x, y, z, x1, y1, z1);
+
+  float c00 = p_lerp(c000, c001, sz);
+  float c01 = p_lerp(c010, c011, sz);
+  float c10 = p_lerp(c100, c101, sz);
+  float c11 = p_lerp(c110, c111, sz);
+
+  float c0 = p_lerp(c00, c01, sy);
+  float c1 = p_lerp(c10, c11, sy);
+
+  float c = p_lerp(c0, c1, sx);
+
+  return c;
+}
 
 __inline__ __device__ bool isBlack(float3 v)
 {
@@ -118,7 +159,7 @@ __inline__ __device__ void coordinate_system(float3 v1, float3 &v2, float3 &v3)
 }
 
 __inline__ __device__ float3 spherical_direction(float sinTheta, float cosTheta, float phi,
-                                                float3 x, float3 y, float3 z)
+    float3 x, float3 y, float3 z)
 {
   return (sinTheta * cosf(phi) * x) + (sinTheta * sinf(phi) * y) + (cosTheta * z);
 }
@@ -164,10 +205,10 @@ __inline__ __device__ float hg_phase(float g, float3 w_out, float3 w_in)
 // Sample diffuse_bsdf
 __inline__ __device__ float3 cwh_sample(float u, float v, float &pdf) {
 
-    float r = sqrtf(u);
-    float theta = 2.0f * M_PIf * v;
-    pdf = sqrtf(1.0f - u) / M_PIf;
-    return make_float3(r * cosf(theta), r * sinf(theta), sqrtf(1.0f - u));
+  float r = sqrtf(u);
+  float theta = 2.0f * M_PIf * v;
+  pdf = sqrtf(1.0f - u) / M_PIf;
+  return make_float3(r * cosf(theta), r * sinf(theta), sqrtf(1.0f - u));
 }
 
 
@@ -209,7 +250,14 @@ __inline__ __device__ float3 estimate_direct_light(float3 isect, int isect_type,
       case ATMOS: // Atmospheric scatter
 
         float p = hg_phase(atmos_g, w_o, w_i);
-        Li *= zeus;
+        //float size = 100.0f;
+        //float3 psamp = isect / size;
+        //psamp.x = max(0.0f, min((float)Perlin::SIZE + 0.9f, fabsf(psamp.x)));
+        //psamp.y = max(0.0f, min((float)Perlin::SIZE + 0.9f, fabsf(psamp.y)));
+        //psamp.z = max(0.0f, min((float)Perlin::SIZE + 0.9f, fabsf(psamp.z)));
+        //float sp = sample_perlin(psamp.x, psamp.y, psamp.z);
+        Li *= zeus;// * fabsf(sp) * 10;
+
         f = make_float3(p);
         scattering_pdf = p;
         break;
@@ -231,7 +279,7 @@ __inline__ __device__ float3 estimate_direct_light(float3 isect, int isect_type,
       shadow_prd.isect = isect;
       shadow_prd.beta = make_float3(1.0f);
       shadow_prd.in_media = prd_radiance.in_media;
-      
+
       optix::Ray shadow_ray(isect, w_i, shadow_ray_type, scene_epsilon);
       rtTrace(top_object, shadow_ray, shadow_prd); // TODO top_geometry
 
@@ -357,7 +405,7 @@ RT_PROGRAM void diffuse_hit_radiance() // closest hit
 
     // Esitmate Direct Lighting // update for surface type
     prd_radiance.radiance = prd_radiance.beta * estimate_direct_light(fhp, DIFFUSE, -prd_radiance.direction, ffnormal);// TODO: check this
-    
+
     prd_radiance.beta *= bsdf_f * dot(ffnormal, w_in) / bsdf_pdf;
   }
 }
