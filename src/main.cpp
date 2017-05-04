@@ -95,10 +95,10 @@ const float DEF_EXPOSURE = 50.0f;
 const float MAX_EXPOSURE = 1000.0f;
 float cam_exposure = DEF_EXPOSURE;
 
-const float MIN_ZEUS = 1.0f;
-const float DEF_ZEUS = 50.0f;
-const float MAX_ZEUS = 100.0f;
-float cam_zeus = DEF_ZEUS;
+const float MIN_ATMOS_SIGMA_H = 1.0f;
+const float DEF_ATMOS_SIGMA_H = 50.0f;
+const float MAX_ATMOS_SIGMA_H = 100.0f;
+float atmos_sigma_h = DEF_ATMOS_SIGMA_H;
 
 const float3 DEF_CAM_POSITION = make_float3(40.0f, 110.0f, 0.0f);
 const float3 DEF_CAM_TARGET = make_float3(0.0f, 40.0f, -400.0f);
@@ -191,7 +191,7 @@ void createContext(bool use_pbo)
   // Set Global Camera Paramters
   //context["aper"]->setFloat(cam_aperature);
   context["exposure"]->setFloat(cam_exposure);
-  context["zeus"]->setFloat(make_float3(cam_zeus));
+  context["atmos_sigma_h"]->setFloat(make_float3(atmos_sigma_h));
 
   Buffer buffer = sutil::createOutputBuffer(context, RT_FORMAT_UNSIGNED_BYTE4, width, height, use_pbo);
   context["output_buffer"]->set(buffer);
@@ -604,6 +604,11 @@ void glfwRun(GLFWwindow *window, sutil::Camera &camera, sutil::PreethamSunSky &s
           context["atmos_sigma_t"]->setFloat(make_float3(atmos_sigma_t));
           accumulation_frame = 0;
         }
+        if (ImGui::SliderFloat("helios", &atmos_sigma_h, MIN_ATMOS_SIGMA_H, MAX_ATMOS_SIGMA_H))
+        {
+          context["atmos_sigma_h"]->setFloat(make_float3(atmos_sigma_h));
+          accumulation_frame = 0;
+        }
         if (ImGui::SliderFloat("dist", &atmos_dist, MIN_ATMOS_DIST, MAX_ATMOS_DIST))
         {
           context["atmos_dist"]->setFloat(atmos_dist);
@@ -628,11 +633,6 @@ void glfwRun(GLFWwindow *window, sutil::Camera &camera, sutil::PreethamSunSky &s
         if (ImGui::SliderFloat("exposure", &cam_exposure, MIN_EXPOSURE, MAX_EXPOSURE))
         {
           context["exposure"]->setFloat(cam_exposure);
-          accumulation_frame = 0;
-        }
-        if (ImGui::SliderFloat("zeus", &cam_zeus, MIN_ZEUS, MAX_ZEUS))
-        {
-          context["zeus"]->setFloat(make_float3(cam_zeus));
           accumulation_frame = 0;
         }
       }
@@ -689,7 +689,9 @@ void printUsageAndExit(const std::string &argv0)
 
                "  -as | --atmos_in_scatter     \n"
                "  -ae | --atmos_extinction     \n"
+               "  -ah | --atmos_helios         \n"
                "  -ad | --atmos_dist           \n"
+               "  -ag | --atmos_g              \n"
 
                "  -ce | --cam_exposure         \n"
                "  -cp | --cam_position         \n"
@@ -768,10 +770,20 @@ int main(int argc, char **argv)
       missing_arg(i, argc, 1, arg, prog);
       atmos_sigma_t = atof(argv[++i]);
     }
+    else if (arg == "-ah" || arg == "--atmos_helios")
+    {
+      missing_arg(i, argc, 1, arg, prog);
+      atmos_sigma_h = atof(argv[++i]);
+    }
     else if (arg == "-ad" || arg == "--atmos_dist")
     {
       missing_arg(i, argc, 1, arg, prog);
       atmos_dist = atof(argv[++i]);
+    }
+    else if (arg == "-ag" || arg == "--atmos_g")
+    {
+      missing_arg(i, argc, 1, arg, prog);
+      atmos_g = atof(argv[++i]);
     }
     else if (arg == "-ce" || arg == "--cam_exposure")
     {

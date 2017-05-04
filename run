@@ -1,23 +1,82 @@
 #!/bin/python3
 
-import subprocess
+import subprocess, math, time
 
-DEBUG = True
-version = "Debug" if DEBUG else "Release"
-program = "godRay.exe"
-exec_path = "/cygdrive/c/ProgramData/NVIDIA Corporation/OptiX SDK 4.0.2/optix_advanced_samples/build/bin/{}/{}".format(version, program)
+def run_program(kwargs):
+    global count, max_count
+    count += 1
 
-kwargs = {
-        '-wh' : [300, 200],
-        '-cp' : [0,-300,0]
-}
+    DEBUG = False
+    version = "Debug" if DEBUG else "Release"
+    program = "godRay.exe"
+    exec_path = "/cygdrive/c/ProgramData/NVIDIA Corporation/OptiX SDK 4.0.2/optix_advanced_samples/build/bin/{}/{}".format(version, program)
+    #del kwargs['-f']
 
-args = [ exec_path ]
-for k in kwargs:
-    args.append(k)
-    if(isinstance(kwargs[k], list)):
-        args += list(map(str, kwargs[k]))
-    else:
-        args.append(kwargs[k])
+    args = [ exec_path ]
+    for k in kwargs:
+        args.append(k)
+        if(isinstance(kwargs[k], list)):
+            args += list(map(str, kwargs[k]))
+        elif(isinstance(kwargs[k], float)):
+            args.append("{:.4f}".format(kwargs[k]))
+        else:
+            args.append(str(kwargs[k]))
+    
+    print("running as:", args)
+    before = time.time()
+    subprocess.call(args)
+    after = time.time()
+    delta_s = after-before
+    delta_m = delta_s/60
+    delta_h = delta_m/60
 
-subprocess.call(args)
+    print("{:.2%} complete. approx {:.4f} minutes remaining".format(count / max_count, delta_m * (max_count - count)))
+    print("render took {:.4f} seconds ({:.4f} minutes) ({:.4f} hours)".format(delta_s, delta_m, delta_h))
+
+
+def run_series(kwargs, key, vals, fname):
+    default = kwargs[key]
+    for val in vals:
+        kwargs[key] = val
+        kwargs['-f'] = "pres/{}_{}.png".format(fname, val)
+        run_program(kwargs)
+    kwargs[key] = default
+
+
+kwargs = dict()
+kwargs['-f'] = 'test.png'
+kwargs['-wh'] = [480,360]
+kwargs['-st'] = math.pi * 5/180
+kwargs['-sp'] = math.pi * 30 / 180
+
+kwargs['-nf'] = 50000
+kwargs['-ce'] = 100.0
+kwargs['-md'] = 6
+
+kwargs['-ae'] = 0.001
+kwargs['-as'] = 0.001
+
+kwargs['-ah'] = 100.0
+kwargs['-ag'] = 0.1
+
+nfs = [1000,2000,4000,8000,16000]
+ces = [1,25,50,150,250,500,1000]
+ags = [-1.0, -0.99, -0.5, -0.1, 0.0, 0.1, 0.5, 0.99, 1.0]
+aes = [0, 0.001, 0.002, 0.004, 0.008]
+mds = [1,2,4,8]
+ahs = [1,2,4,8,16,32,64,100]
+ass = [0, 0.001, 0.002, 0.004, 0.008]
+
+count = 0
+max_count = sum(map(len, [
+    #nfs, ces, ags, aes,
+    mds, ahs, ass
+]))
+
+#run_series(kwargs, '-nf', nfs, 'num_frames')
+#run_series(kwargs, '-ce', ces, 'exposure')
+#run_series(kwargs, '-ag', ags, 'atmos_phase_g')
+#run_series(kwargs, '-ae', aes, 'atmos_extinction')
+run_series(kwargs, '-as', ass, 'atmos_in_scatter')
+run_series(kwargs, '-ah', ahs, 'atmos_helios')
+run_series(kwargs, '-md', mds, 'max_depth')

@@ -35,9 +35,9 @@ rtBuffer<float3> gradient_buffer;
 
 rtDeclareVariable(float3, atmos_sigma_t, , );
 rtDeclareVariable(float3, atmos_sigma_s, , );
+rtDeclareVariable(float3, atmos_sigma_h, , );
 rtDeclareVariable(float, atmos_g, , );
 rtDeclareVariable(float, atmos_dist, , );
-rtDeclareVariable(float3, zeus, , );
 
 rtDeclareVariable(float,    overcast, , );
 rtDeclareVariable(optix::float3,   sun_direction, , );
@@ -256,7 +256,7 @@ __inline__ __device__ float3 estimate_direct_light(float3 isect, int isect_type,
         //psamp.y = max(0.0f, min((float)Perlin::SIZE + 0.9f, fabsf(psamp.y)));
         //psamp.z = max(0.0f, min((float)Perlin::SIZE + 0.9f, fabsf(psamp.z)));
         //float sp = sample_perlin(psamp.x, psamp.y, psamp.z);
-        Li *= zeus;// * fabsf(sp) * 10;
+        Li *= atmos_sigma_h;// * fabsf(sp) * 10;
 
         f = make_float3(p);
         scattering_pdf = p;
