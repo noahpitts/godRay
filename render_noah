@@ -13,31 +13,32 @@ exec_path = "./godRay.exe"
 f_fmt = ("./raw/frame_{:0>4d}.png").format
 kwargs = {
     "-nf" : "10000",
-    "-wh" : ["1280", "720"]
+    "-wh" : ["600", "300"]
+
 }
 
-start_frame = 1
-num_frames = 200
-step_size = 2
+start_frame = 0
+num_frames = 32
+step_size = 8
 
 #camera_start =
 
-cx_start = 40.0
-cx_end = -40.0
+cx_start = 0.0
+cx_end = 0.0
 
-cy_start = 100.0
+cy_start = 0.0
 cy_end = 0.0
 
-cz_start = 0.0
-cz_end = -250.0
+cz_start = -80.0
+cz_end = -120.0
 
-file = open("run_render.ps1", "w")
+file = open("run_render4.ps1", "w")
 
 for i in range(start_frame,num_frames+step_size,step_size):
     u = i / num_frames
 
-    t1 = 22  * math.pi / 180
-    t2 =  80  * math.pi / 180
+    t1 = 85  * math.pi / 180
+    t2 =  85  * math.pi / 180
 
     p1 = 0   * math.pi / 180
     p2 = 330 * math.pi / 180
