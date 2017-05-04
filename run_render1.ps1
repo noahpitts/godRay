@@ -1,3 +1,17 @@
+./godRay.exe -nf 10000 -wh 1280 720 -st 0.4245 -sp 2.9950 -cp 1.6000 52.0000 -120.0000 -f ./raw/frame_0096.png
+./godRay.exe -nf 10000 -wh 1280 720 -st 0.4245 -sp 2.7646 -cp -1.6000 48.0000 -130.0000 -f ./raw/frame_0104.png
+./godRay.exe -nf 10000 -wh 1280 720 -st 0.5054 -sp 2.5342 -cp -4.8000 44.0000 -140.0000 -f ./raw/frame_0112.png
+./godRay.exe -nf 10000 -wh 1280 720 -st 0.5864 -sp 2.3038 -cp -8.0000 40.0000 -150.0000 -f ./raw/frame_0120.png
+./godRay.exe -nf 10000 -wh 1280 720 -st 0.6674 -sp 2.0735 -cp -11.2000 36.0000 -160.0000 -f ./raw/frame_0128.png
+./godRay.exe -nf 10000 -wh 1280 720 -st 0.7484 -sp 1.8431 -cp -14.4000 32.0000 -170.0000 -f ./raw/frame_0136.png
+./godRay.exe -nf 10000 -wh 1280 720 -st 0.8294 -sp 1.6127 -cp -17.6000 28.0000 -180.0000 -f ./raw/frame_0144.png
+./godRay.exe -nf 10000 -wh 1280 720 -st 0.9104 -sp 1.3823 -cp -20.8000 24.0000 -190.0000 -f ./raw/frame_0152.png
+./godRay.exe -nf 10000 -wh 1280 720 -st 0.9913 -sp 1.1519 -cp -24.0000 20.0000 -200.0000 -f ./raw/frame_0160.png
+./godRay.exe -nf 10000 -wh 1280 720 -st 1.0723 -sp 0.9215 -cp -27.2000 16.0000 -210.0000 -f ./raw/frame_0168.png
+./godRay.exe -nf 10000 -wh 1280 720 -st 1.1533 -sp 0.6912 -cp -30.4000 12.0000 -220.0000 -f ./raw/frame_0176.png
+./godRay.exe -nf 10000 -wh 1280 720 -st 1.2343 -sp 0.4608 -cp -33.6000 8.0000 -230.0000 -f ./raw/frame_0184.png
+./godRay.exe -nf 10000 -wh 1280 720 -st 1.3153 -sp 0.2304 -cp -36.8000 4.0000 -240.0000 -f ./raw/frame_0192.png
+./godRay.exe -nf 10000 -wh 1280 720 -st 1.3963 -sp 0.0000 -cp -40.0000 0.0000 -250.0000 -f ./raw/frame_0200.png
 ./godRay.exe -cp 38.4000 98.0000 -5.0000 -f ./raw/frame_0004.png -wh 1280 720 -st 1.3558 -sp 5.6444 -nf 10000
 ./godRay.exe -cp 35.2000 94.0000 -15.0000 -f ./raw/frame_0012.png -wh 1280 720 -st 1.2748 -sp 5.4140 -nf 10000
 ./godRay.exe -cp 32.0000 90.0000 -25.0000 -f ./raw/frame_0020.png -wh 1280 720 -st 1.1938 -sp 5.1836 -nf 10000

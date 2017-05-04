@@ -3,7 +3,7 @@
 import subprocess
 import math
 
-DEBUG = True
+DEBUG = False
 version = "Debug" if DEBUG else "Release"
 program = "godRay.exe"
 out_path = "output/"
@@ -12,7 +12,7 @@ exec_path = "/cygdrive/c/ProgramData/NVIDIA Corporation/OptiX SDK 4.0.2/optix_ad
 
 
 f_fmt = (out_path + "output_{:0>4d}.png").format
-kwargs = { 
+kwargs = {
     "-nf" : "1000",
     "-wh" : ["200", "150"]
 }
@@ -23,12 +23,12 @@ step_size = 40
 for i in range(start_frame,num_frames+step_size,step_size):
     u = i / num_frames
 
-    t1 = 30  * math.pi / 180
-    t2 =  5  * math.pi / 180
-    
+    t1 = 80  * math.pi / 180
+    t2 =  10  * math.pi / 180
+
     p1 = 0   * math.pi / 180
-    p2 = 180 * math.pi / 180
-    
+    p2 = 360 * math.pi / 180
+
     p = p1*u + p2*(1-u)
 
     if u < 0.5:
