@@ -1,41 +1,58 @@
 # godRay
-for making a godRay
+Demonstration of volumetric atmospheric scattering running on a GPU via NVidia's Optix SDK.
+
+## Authors
+Noah Pitts and Isak Karlsson
 
 ## Command Line Args
-    -h
-    -n
-    -s <INT>                Maximum number of camera rays per pixel if output to file (default = 256)
-    -l <INT>                Number of samples per area light (default = 32)
-    -m <INT>                Maximum ray depth (default = 10)
-    -r <INT> <INT>          Width and height in pixels of the image
-    -f <FILENAME>           Image (.png) to save output to in a windowless mode
-    -g <FLOAT> <FLOAT>      Geolocation in Latitude-Longitude (default = 41.90322, 12.49564)
-    -t <INT> <FLOAT>        Day of year(0-365) and hour of day(0.0 - 23.99) (default = 78, 12.0)
-
-    <mesh path>
-
+    -h  || --help
+    -f  || --file
+    -n  || --nopbo
+    -nf || --num_frames
+    -md || --max_depth
+    -wh || --width_height
+    -as || --atmos_in_scatter
+    -ae || --atmos_extinction
+    -ah || --atmos_helios
+    -ad || --atmos_dist
+    -ag || --atmos_g
+    -ce || --cam_exposure
+    -cp || --cam_position
+    -ct || --cam_target
+    -sr || --sun_radius
+    -st || --sun_theta
+    -sp || --sun_phi
 
 ## Main Program Overview
-- read cmd line args
-    - `-h` print help and exit - Fx
-    - `-f <path>` ste `output_file_path` to `<path>`
-    - `-n` set pbo
-    - `-` unknown cmd option
-    - All other options are added to `mesh_file_paths`
 
-- initialize a GLFW window - Fx
-- create context (set pbo)
-- if no mesh files specified load default scene
-- create materials
-    - create glass material - Fx
-    - create diffuse material - Fx
-- validate context
+Launches an OpenGL window and a cuda context.
+Parses a mesh file, path hardcoded to "model/obj/temple_highres_video.obj"
+Sets up geometry, intersection, bounding box, and materials for each respective mesh.
+Executes OptiX for raytracing given the above configuration / context.
 
+## INSTALLATION / SETUP
 
+- Download and install Optix SDK 4.0.2
+  * https://developer.nvidia.com/optix
 
+- Clone the advanced sdk samples from git
+  * https://github.com/nvpro-samples/optix_advanced_samples
 
+- Clone this repo into the following folder:
+  * <PATH_TO>/optix_advanced_samples/src/godRay
 
-## TODO:
-- What is pbo?
-- import general obj mesh file
+- Edit the following file to include godRay as a sample project.
+  * <PATH>/optix_advanced_samples/src/CMakeLists.txt
+  * Above add_subdirectory(optixHello) add the following:
+    - add_subdirectory(godRay)
 
+- Install CMake
+- Install Visual Studios 2015
+
+- run cmake-gui
+  * set src/build
+  * run configure
+  * run generate
+  * open project
+
+- Compile, run, and enjoy!
