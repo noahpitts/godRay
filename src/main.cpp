@@ -5,6 +5,12 @@
 //
 //-----------------------------------------------------------------------------
 
+/************************
+ * UNCOMMENT FOR SUBMIT
+ ************************/
+//#define FOR_SUBMIT
+
+
 //#ifndef __APPLE__
 #include <GL/glew.h>
 #if defined(_WIN32)
@@ -138,10 +144,16 @@ Context context = 0;
 
 static std::string ptxPath(const std::string &cuda_file)
 {
-  return std::string(sutil::samplesPTXDir()) +
-         "/" + std::string(PROGRAM_NAME) + "_generated_" +
+#ifdef FOR_SUBMIT
+  return "./" + std::string(PROGRAM_NAME) + "_generated_" +
          cuda_file +
          ".ptx";
+#else
+  return std::string(sutil::samplesPTXDir()) + "/" + 
+         std::string(PROGRAM_NAME) + "_generated_" +
+         cuda_file +
+         ".ptx";
+#endif
 }
 
 // PATHS
@@ -323,7 +335,12 @@ void createGeometry()
   mesh.material = createPhongMaterial(make_float3(DIFFUSE_CONST));
   Matrix4x4 xform = Matrix4x4::identity();
 
+#ifdef FOR_SUBMIT
+  loadMesh("./temple_highres_video.obj", mesh, xform);
+#else
   loadMesh(std::string(sutil::samplesDir()) + "/godRay/model/obj/temple_highres_video.obj", mesh, xform);
+#endif
+
   gis.push_back(mesh.geom_instance);
 
   geometry_group->setChildCount(static_cast<unsigned int>(gis.size()));
