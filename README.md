@@ -1,6 +1,8 @@
 # godRay
 Demonstration of volumetric atmospheric scattering running on a GPU via NVidia's Optix SDK.
 
+Final Project Report: https://noahpitts.github.io/godRay/
+
 ## Authors
 Noah Pitts and Isak Karlsson
 
