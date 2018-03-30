@@ -1,0 +1,1663 @@
+<!doctype html>
+<html>
+
+<head>
+    <meta charset='utf-8'>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/github-markdown-css/2.4.1/github-markdown.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/9.9.0/styles/default.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.6.0/katex.min.css">
+    <link rel="stylesheet" href="https://gitcdn.xyz/repo/goessner/mdmath/master/css/mdmath.css">
+    <link href="https://fonts.googleapis.com/css?family=Open+Sans|Source+Sans+Pro" rel="stylesheet">
+
+    <style>
+        body {
+            padding: 100px;
+            width: 960px;
+            margin: auto;
+            text-align: left;
+            font-weight: 300;
+            color: #121212;
+        }
+
+        p {
+            font-family: 'Open Sans', sans-serif;
+        }
+
+        h1,
+        h2,
+        h3,
+        h4 {
+            font-family: 'Source Sans Pro', sans-serif;
+        }
+    </style>
+
+
+</head>
+
+<body class="markdown-body">
+  <center><img src="./img/godRay.png" align="middle" width="80%" /></center>
+    <h1>Rendering godrays with monte carlo path tracing on the GPU</h1>
+    <h2>Noah Pitts | Isak Karlsson</h2>
+    <h2>1. Introduction</h2>
+    <p>The god ray is a visually appealing and intense lighting effect that can be seen in the rendering of interior architectural
+        scenes with limited direct illumination through a portal. The paper proposes a technique for using the the GPU to
+        efficiently and progressively render god rays in these types of scenes using brute force Monte Carlo integration
+        of a volumetric rendering equation. A CUDA rendering application called <em>godRay</em> was produced with the ability
+        to control sun and sky lighting and participating media parameters in a interior temple scene. The discussion is
+        focused on the caparison of these parameters with respect to the physically based rendering of god rays.</p>
+    <center><img src="./img/Internal_Pantheon_Light.jpg" align="middle" width="80%" />
+    <figcaption align="middle" class="cap">Occulus of the Pantheon with Crepuscular Ray</figcaption></center>
+    <h3>1.1 Crepuscular Rays</h3>
+    <p>God rays, also known as Crepuscular Rays in atmospheric optics, are light beams that appear to radiate from an intense
+        light source in the scene and are particularly apparent when a considerable portion of the scene is occluded from
+        the this light source. In exterior scenes god rays may be seen as beams of light streaming through dense clouds or
+        physical openings in geometry such as between buildings or trees. Interior scenes can also exhibit god rays such
+        as in the image of the pantheon, a classical roman architecture that is day-lit by a single occulus at the top of
+        the dome. In these cases, the viewer of the image is drawn to the phenomenological qualities of the space and the
+        connection to this exterior light source. In the physical environment, god rays are usually produced by the intensity
+        sun of the sun as a single light source in contrast to the much less intense sky dome or skylight. The rays appear
+        as if they converge to a point, but in the case of sunlight are near parallel. The tapering or slight conical appearance
+        of these light rays is an effect often caused by perspective convergence or in the case of computer rendering linear
+        perspective.
+    </p>
+    <h3>1.2 Participating Media</h3>
+    <p>God rays are made visible in the scene through the interaction of light with participating media or atmospheric particles
+        such as smoke, fog, or haze. It is often the case that in architectural renderings of an interior scene, god rays
+        appear in a homogeneous media as the interacting particles in the volume of the space are well mixed. However interactions
+        with media of heterogeneous density are possible as well. In this paper we will be considering only the homogeneous
+        case due to the efficiency it affords when sampling the media.</p>
+    <h3>1.3 GPU Rendering</h3>
+    <p>For interior architectural scenes with significant indirect lighting and global illumination path tracing techniques
+        can provided excellent results. In order to maintain an unbiased solution we have used a brute force Monte Carlo
+        integrator to numerically solve the rendering equations. The brute force approach to the rendering equation requires
+        a significantly greater amount of pixel samples to resolve the scene, especially in areas only lit by indirect illumination.
+        The increase in sampling can greatly increase the rendering times of the scene. In scenes with participating media,
+        the sampling and rendering times can increase even further. To account for this, we have developed the rendering
+        application on the GPU using Nvidia CUDA. Both the direct illumination and indirect illumination integrators are
+        developed in CUDA kernels to take advantage of the massive core count on the GPU. The test images for this paper
+        were rendered with two Nvidia Titan X GPUs with a combined count of 7680 CUDA cores. The scene bounding volume hierarchy
+        (BVH) was built using the Nvidia OptiX SDK.</p>
+    <h2>2. Mathematical Model</h2>
+    <p>The rendering equation for <em>godRay</em> is formaly based on the rendering equation proposed by Kajiya <code>Reference</code>        with adaptations for volumetric rendering in homogeneous participating media discussed in chapter 4 of Wojciech Jarosz
+        thesis <code>Reference</code>. This project maintains an unbiased approach using monte carlo techniques as presented
+        by Veach <code>Reference</code>.</p>
+    <h3>2.1 Participating media</h3>
+    <center>
+    <table style="width=80%">
+        <tr>
+            <td>
+                <img src="./img/absorbtion.JPG" align="middle" width="80%" />
+                <figcaption align="middle" class="cap">Absorbtion</figcaption>
+            </td>
+            <td>
+                <img src="./img/outscatter.JPG" align="middle" width="80%" />
+                <figcaption align="middle" class="cap">Out Scatter</figcaption>
+            </td>
+            <td>
+                <img src="./img/inscatter.JPG" align="middle" width="80%" />
+                <figcaption align="middle" class="cap">In Scatter</figcaption>
+            </td>
+        </tr>
+    </table>
+    </center>
+    For rendering participating media in the scene we consider three differential effects of light transport along the length
+    of the ray path segments: absorbtion (
+    <eq><span class="katex"><span class="katex-mathml"><math><semantics><mrow><msub><mi>σ</mi><mi>a</mi></msub></mrow><annotation encoding="application/x-tex">\\sigma\_a</annotation></semantics></math></span>
+        <span class="katex-html" aria-hidden="true"><span class="strut" style="height:0.43056em;"></span><span class="strut bottom"
+            style="height:0.58056em;vertical-align:-0.15em;"></span>
+        <span class="base textstyle uncramped"><span class="mord"><span class="mord mathit" style="margin-right:0.03588em;">σ</span>
+        <span class="vlist"><span style="top:0.15em;margin-right:0.05em;margin-left:-0.03588em;"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>
+        <span class="reset-textstyle scriptstyle cramped"><span class="mord mathit">a</span></span>
+        </span><span class="baseline-fix"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>​</span>
+        </span>
+        </span>
+        </span>
+        </span>
+        </span>
+    </eq>) , out-scattering (
+    <eq><span class="katex"><span class="katex-mathml"><math><semantics><mrow><msub><mi>σ</mi><mi>o</mi></msub></mrow><annotation encoding="application/x-tex">\\sigma\_o</annotation></semantics></math></span>
+        <span class="katex-html" aria-hidden="true"><span class="strut" style="height:0.43056em;"></span><span class="strut bottom"
+            style="height:0.58056em;vertical-align:-0.15em;"></span>
+        <span class="base textstyle uncramped"><span class="mord"><span class="mord mathit" style="margin-right:0.03588em;">σ</span>
+        <span class="vlist"><span style="top:0.15em;margin-right:0.05em;margin-left:-0.03588em;"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>
+        <span class="reset-textstyle scriptstyle cramped"><span class="mord mathit">o</span></span>
+        </span><span class="baseline-fix"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>​</span>
+        </span>
+        </span>
+        </span>
+        </span>
+        </span>
+    </eq>) , and in-scattering (
+    <eq><span class="katex"><span class="katex-mathml"><math><semantics><mrow><msub><mi>σ</mi><mi>s</mi></msub></mrow><annotation encoding="application/x-tex">\\sigma\_s</annotation></semantics></math></span>
+        <span class="katex-html" aria-hidden="true"><span class="strut" style="height:0.43056em;"></span><span class="strut bottom"
+            style="height:0.58056em;vertical-align:-0.15em;"></span>
+        <span class="base textstyle uncramped"><span class="mord"><span class="mord mathit" style="margin-right:0.03588em;">σ</span>
+        <span class="vlist"><span style="top:0.15em;margin-right:0.05em;margin-left:-0.03588em;"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>
+        <span class="reset-textstyle scriptstyle cramped"><span class="mord mathit">s</span></span>
+        </span><span class="baseline-fix"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>​</span>
+        </span>
+        </span>
+        </span>
+        </span>
+        </span>
+    </eq>) . However absorbtion and out-scattering will be combined to form a single extinction coefficient (
+    <eq><span class="katex"><span class="katex-mathml"><math><semantics><mrow><msub><mi>σ</mi><mi>t</mi></msub></mrow><annotation encoding="application/x-tex">\\sigma\_t</annotation></semantics></math></span>
+        <span class="katex-html" aria-hidden="true"><span class="strut" style="height:0.43056em;"></span><span class="strut bottom"
+            style="height:0.58056em;vertical-align:-0.15em;"></span>
+        <span class="base textstyle uncramped"><span class="mord"><span class="mord mathit" style="margin-right:0.03588em;">σ</span>
+        <span class="vlist"><span style="top:0.15em;margin-right:0.05em;margin-left:-0.03588em;"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>
+        <span class="reset-textstyle scriptstyle cramped"><span class="mord mathit">t</span></span>
+        </span><span class="baseline-fix"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>​</span>
+        </span>
+        </span>
+        </span>
+        </span>
+        </span>
+    </eq>).
+    <section>
+        <eqn><span class="katex-display"><span class="katex"><span class="katex-mathml"><math><semantics><mrow><msub><mi>σ</mi><mi>t</mi></msub><mo>=</mo><msub><mi>σ</mi><mi>a</mi></msub><mo>+</mo><msub><mi>σ</mi><mi>o</mi></msub></mrow><annotation encoding="application/x-tex">\\sigma\_t = \\sigma\_a + \\sigma\_o</annotation></semantics></math></span>
+            <span class="katex-html" aria-hidden="true"><span class="strut" style="height:0.58333em;"></span><span class="strut bottom"
+                style="height:0.73333em;vertical-align:-0.15em;"></span>
+            <span class="base displaystyle textstyle uncramped"><span class="mord"><span class="mord mathit" style="margin-right:0.03588em;">σ</span>
+            <span class="vlist"><span style="top:0.15em;margin-right:0.05em;margin-left:-0.03588em;"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>
+            <span class="reset-textstyle scriptstyle cramped"><span class="mord mathit">t</span></span>
+            </span><span class="baseline-fix"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>​</span>
+            </span>
+            </span><span class="mrel">=</span><span class="mord"><span class="mord mathit" style="margin-right:0.03588em;">σ</span>
+            <span class="vlist"><span style="top:0.15em;margin-right:0.05em;margin-left:-0.03588em;"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>
+            <span class="reset-textstyle scriptstyle cramped"><span class="mord mathit">a</span></span>
+            </span><span class="baseline-fix"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>​</span>
+            </span>
+            </span><span class="mbin">+</span><span class="mord"><span class="mord mathit" style="margin-right:0.03588em;">σ</span>
+            <span class="vlist"><span style="top:0.15em;margin-right:0.05em;margin-left:-0.03588em;"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>
+            <span class="reset-textstyle scriptstyle cramped"><span class="mord mathit">o</span></span>
+            </span><span class="baseline-fix"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>​</span>
+            </span>
+            </span>
+            </span>
+            </span>
+            </span>
+            </span>
+        </eqn>
+    </section>
+    <p>where the differential equation of extinction can be described by</p>
+    <section>
+        <eqn><span class="katex-display"><span class="katex"><span class="katex-mathml"><math><semantics><mrow><mi>d</mi><msub><mi>L</mi><mi>o</mi></msub><mo>(</mo><mi>x</mi><mo separator="true">,</mo><mi>ω</mi><mo>)</mo><mo>=</mo><mo>−</mo><msub><mi>σ</mi><mi>t</mi></msub><mo>(</mo><mi>x</mi><mo separator="true">,</mo><mi>ω</mi><mo>)</mo><msub><mi>L</mi><mi>i</mi></msub><mo>(</mo><mi>x</mi><mo separator="true">,</mo><mi>ω</mi><mo>)</mo><mi>d</mi><mi>t</mi></mrow><annotation encoding="application/x-tex">dL \_o(x, \\omega) = -\\sigma\_t(x, \\omega)L\_i(x, \\omega)dt</annotation></semantics></math></span>
+            <span class="katex-html" aria-hidden="true"><span class="strut" style="height:0.75em;"></span><span class="strut bottom"
+                style="height:1em;vertical-align:-0.25em;"></span>
+            <span class="base displaystyle textstyle uncramped"><span class="mord mathit">d</span><span class="mord"><span class="mord mathit">L</span>
+            <span class="vlist"><span style="top:0.15em;margin-right:0.05em;margin-left:0em;"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>
+            <span class="reset-textstyle scriptstyle cramped"><span class="mord mathit">o</span></span>
+            </span><span class="baseline-fix"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>​</span>
+            </span>
+            </span><span class="mopen">(</span><span class="mord mathit">x</span><span class="mpunct">,</span>
+            <span class="mord mathit" style="margin-right:0.03588em;">ω</span><span class="mclose">)</span><span class="mrel">=</span>
+            <span class="mord">−</span>
+            <span class="mord"><span class="mord mathit" style="margin-right:0.03588em;">σ</span><span class="vlist"><span style="top:0.15em;margin-right:0.05em;margin-left:-0.03588em;"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>
+            <span class="reset-textstyle scriptstyle cramped"><span class="mord mathit">t</span></span>
+            </span><span class="baseline-fix"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>​</span>
+            </span>
+            </span><span class="mopen">(</span><span class="mord mathit">x</span><span class="mpunct">,</span>
+            <span class="mord mathit" style="margin-right:0.03588em;">ω</span><span class="mclose">)</span>
+            <span class="mord"><span class="mord mathit">L</span>
+            <span class="vlist"><span style="top:0.15em;margin-right:0.05em;margin-left:0em;"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>
+            <span class="reset-textstyle scriptstyle cramped"><span class="mord mathit">i</span></span>
+            </span><span class="baseline-fix"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>​</span>
+            </span>
+            </span><span class="mopen">(</span><span class="mord mathit">x</span><span class="mpunct">,</span>
+            <span class="mord mathit" style="margin-right:0.03588em;">ω</span><span class="mclose">)</span>
+            <span class="mord mathit">d</span>
+            <span class="mord mathit">t</span>
+            </span>
+            </span>
+            </span>
+            </span>
+        </eqn>
+    </section>
+    <p>The fraction of radiance that is transmitted between two points along the ray path, transmittance(
+        <eq><span class="katex"><span class="katex-mathml"><math><semantics><mrow><msub><mi>T</mi><mi>r</mi></msub><mo>(</mo><msub><mi>x</mi><mn>1</mn></msub><mo separator="true">,</mo><msub><mi>x</mi><mn>2</mn></msub><mo>)</mo></mrow><annotation encoding="application/x-tex">T_r(x_1, x_2)</annotation></semantics></math></span>
+            <span class="katex-html" aria-hidden="true"><span class="strut" style="height:0.75em;"></span><span class="strut bottom"
+                style="height:1em;vertical-align:-0.25em;"></span>
+            <span class="base textstyle uncramped"><span class="mord"><span class="mord mathit" style="margin-right:0.13889em;">T</span>
+            <span class="vlist"><span style="top:0.15em;margin-right:0.05em;margin-left:-0.13889em;"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>
+            <span class="reset-textstyle scriptstyle cramped"><span class="mord mathit" style="margin-right:0.02778em;">r</span></span>
+            </span><span class="baseline-fix"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>​</span>
+            </span>
+            </span><span class="mopen">(</span><span class="mord"><span class="mord mathit">x</span><span class="vlist"><span style="top:0.15em;margin-right:0.05em;margin-left:0em;"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>
+            <span class="reset-textstyle scriptstyle cramped"><span class="mord mathrm">1</span></span>
+            </span><span class="baseline-fix"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>​</span>
+            </span>
+            </span><span class="mpunct">,</span><span class="mord"><span class="mord mathit">x</span><span class="vlist"><span style="top:0.15em;margin-right:0.05em;margin-left:0em;"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>
+            <span class="reset-textstyle scriptstyle cramped"><span class="mord mathrm">2</span></span>
+            </span><span class="baseline-fix"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>​</span>
+            </span>
+            </span><span class="mclose">)</span></span>
+            </span>
+            </span>
+        </eq>) is therefore the solution to the differential equation of extinction.</p>
+    <section>
+        <eqn><span class="katex-display"><span class="katex"><span class="katex-mathml"><math><semantics><mrow><msub><mi>T</mi><mi>r</mi></msub><mo>(</mo><msub><mi>x</mi><mn>1</mn></msub><mo separator="true">,</mo><msub><mi>x</mi><mn>2</mn></msub><mo>)</mo><mo>=</mo><msup><mi>e</mi><mrow><mo>−</mo><msubsup><mo>∫</mo><mn>0</mn><mi>d</mi></msubsup><mrow><msub><mi>σ</mi><mi>t</mi></msub><mo>(</mo><msub><mi>x</mi><mn>1</mn></msub><mo>+</mo><mi>t</mi><mi>ω</mi><mo separator="true">,</mo><mi>ω</mi><mo>)</mo><mi>d</mi><mi>t</mi></mrow></mrow></msup></mrow><annotation encoding="application/x-tex">T\_r(x\_1, x\_2) = e^{-\\int\_0^d{\\sigma\_t(x\_1 + t\\omega, \\omega)dt}}</annotation></semantics></math></span>
+            <span class="katex-html" aria-hidden="true"><span class="strut" style="height:1.05352em;"></span><span class="strut bottom"
+                style="height:1.30352em;vertical-align:-0.25em;"></span>
+            <span class="base displaystyle textstyle uncramped"><span class="mord"><span class="mord mathit" style="margin-right:0.13889em;">T</span>
+            <span class="vlist"><span style="top:0.15em;margin-right:0.05em;margin-left:-0.13889em;"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>
+            <span class="reset-textstyle scriptstyle cramped"><span class="mord mathit" style="margin-right:0.02778em;">r</span></span>
+            </span><span class="baseline-fix"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>​</span>
+            </span>
+            </span><span class="mopen">(</span><span class="mord"><span class="mord mathit">x</span><span class="vlist"><span style="top:0.15em;margin-right:0.05em;margin-left:0em;"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>
+            <span class="reset-textstyle scriptstyle cramped"><span class="mord mathrm">1</span></span>
+            </span><span class="baseline-fix"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>​</span>
+            </span>
+            </span><span class="mpunct">,</span><span class="mord"><span class="mord mathit">x</span><span class="vlist"><span style="top:0.15em;margin-right:0.05em;margin-left:0em;"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>
+            <span class="reset-textstyle scriptstyle cramped"><span class="mord mathrm">2</span></span>
+            </span><span class="baseline-fix"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>​</span>
+            </span>
+            </span><span class="mclose">)</span><span class="mrel">=</span><span class="mord"><span class="mord mathit">e</span>
+            <span class="vlist"><span style="top:-0.413em;margin-right:0.05em;"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>
+            <span class="reset-textstyle scriptstyle uncramped"><span class="mord scriptstyle uncramped"><span class="mord">−</span>
+            <span class="mop"><span class="op-symbol small-op mop" style="margin-right:0.19445em;top:0.07444000000000003em;">∫</span>
+            <span class="vlist"><span style="top:0.35612em;margin-left:-0.19445em;margin-right:0.07142857142857144em;"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>
+            <span class="reset-scriptstyle scriptscriptstyle cramped"><span class="mord mathrm">0</span></span>
+            </span><span style="top:-0.41900000000000004em;margin-right:0.07142857142857144em;"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>
+            <span class="reset-scriptstyle scriptscriptstyle uncramped"><span class="mord mathit">d</span></span>
+            </span><span class="baseline-fix"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>​</span>
+            </span>
+            </span><span class="mord scriptstyle uncramped"><span class="mord"><span class="mord mathit" style="margin-right:0.03588em;">σ</span>
+            <span class="vlist"><span style="top:0.15em;margin-right:0.07142857142857144em;margin-left:-0.03588em;"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>
+            <span class="reset-scriptstyle scriptscriptstyle cramped"><span class="mord mathit">t</span></span>
+            </span><span class="baseline-fix"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>​</span>
+            </span>
+            </span><span class="mopen">(</span><span class="mord"><span class="mord mathit">x</span>
+            <span class="vlist"><span style="top:0.15em;margin-right:0.07142857142857144em;margin-left:0em;"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>
+            <span class="reset-scriptstyle scriptscriptstyle cramped"><span class="mord mathrm">1</span></span>
+            </span><span class="baseline-fix"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>​</span>
+            </span>
+            </span><span class="mbin">+</span><span class="mord mathit">t</span>
+            <span class="mord mathit" style="margin-right:0.03588em;">ω</span><span class="mpunct">,</span>
+            <span class="mord mathit" style="margin-right:0.03588em;">ω</span><span class="mclose">)</span>
+            <span class="mord mathit">d</span><span class="mord mathit">t</span></span>
+            </span>
+            </span>
+            </span><span class="baseline-fix"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>​</span>
+            </span>
+            </span>
+            </span>
+            </span>
+            </span>
+            </span>
+        </eqn>
+    </section>
+    <p>However, since we are considering our <em>godRay</em> scenes to contain only homogenuos media where the extintion coefficient
+        is constant, we can significanly simplify the tranmittance equation to beer's law where
+        <eq><span class="katex"><span class="katex-mathml"><math><semantics><mrow><mi>d</mi></mrow><annotation encoding="application/x-tex">d</annotation></semantics></math></span>
+            <span class="katex-html" aria-hidden="true"><span class="strut" style="height:0.69444em;"></span><span class="strut bottom"
+                style="height:0.69444em;vertical-align:0em;"></span>
+            <span class="base textstyle uncramped"><span class="mord mathit">d</span></span>
+            </span>
+            </span>
+        </eq> is representing the path length between points.</p>
+    <section>
+        <eqn><span class="katex-display"><span class="katex"><span class="katex-mathml"><math><semantics><mrow><msub><mi>T</mi><mi>r</mi></msub><mo>(</mo><msub><mi>x</mi><mn>1</mn></msub><mo separator="true">,</mo><msub><mi>x</mi><mn>2</mn></msub><mo>)</mo><mo>=</mo><msup><mi>e</mi><mrow><mo>−</mo><msub><mi>σ</mi><mi>t</mi></msub><mi>d</mi></mrow></msup></mrow><annotation encoding="application/x-tex">T\_r(x\_1, x\_2) = e^{-\\sigma\_td}</annotation></semantics></math></span>
+            <span class="katex-html" aria-hidden="true"><span class="strut" style="height:0.899108em;"></span><span class="strut bottom"
+                style="height:1.149108em;vertical-align:-0.25em;"></span>
+            <span class="base displaystyle textstyle uncramped"><span class="mord"><span class="mord mathit" style="margin-right:0.13889em;">T</span>
+            <span class="vlist"><span style="top:0.15em;margin-right:0.05em;margin-left:-0.13889em;"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>
+            <span class="reset-textstyle scriptstyle cramped"><span class="mord mathit" style="margin-right:0.02778em;">r</span></span>
+            </span><span class="baseline-fix"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>​</span>
+            </span>
+            </span><span class="mopen">(</span><span class="mord"><span class="mord mathit">x</span><span class="vlist"><span style="top:0.15em;margin-right:0.05em;margin-left:0em;"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>
+            <span class="reset-textstyle scriptstyle cramped"><span class="mord mathrm">1</span></span>
+            </span><span class="baseline-fix"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>​</span>
+            </span>
+            </span><span class="mpunct">,</span><span class="mord"><span class="mord mathit">x</span><span class="vlist"><span style="top:0.15em;margin-right:0.05em;margin-left:0em;"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>
+            <span class="reset-textstyle scriptstyle cramped"><span class="mord mathrm">2</span></span>
+            </span><span class="baseline-fix"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>​</span>
+            </span>
+            </span><span class="mclose">)</span><span class="mrel">=</span><span class="mord"><span class="mord mathit">e</span>
+            <span class="vlist"><span style="top:-0.413em;margin-right:0.05em;"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>
+            <span class="reset-textstyle scriptstyle uncramped"><span class="mord scriptstyle uncramped"><span class="mord">−</span>
+            <span class="mord"><span class="mord mathit" style="margin-right:0.03588em;">σ</span>
+            <span class="vlist"><span style="top:0.15em;margin-right:0.07142857142857144em;margin-left:-0.03588em;"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>
+            <span class="reset-scriptstyle scriptscriptstyle cramped"><span class="mord mathit">t</span></span>
+            </span><span class="baseline-fix"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>​</span>
+            </span>
+            </span><span class="mord mathit">d</span></span>
+            </span>
+            </span><span class="baseline-fix"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>​</span>
+            </span>
+            </span>
+            </span>
+            </span>
+            </span>
+            </span>
+        </eqn>
+    </section>
+    <p>The model for in-scattering can be described by the differential equation where incoming radiation from all solid angles
+        <eq><span class="katex"><span class="katex-mathml"><math><semantics><mrow><msup><mi>ω</mi><mrow><mi mathvariant="normal">′</mi></mrow></msup></mrow><annotation encoding="application/x-tex">\omega'</annotation></semantics></math></span>
+            <span class="katex-html" aria-hidden="true"><span class="strut" style="height:0.751892em;"></span><span class="strut bottom"
+                style="height:0.751892em;vertical-align:0em;"></span>
+            <span class="base textstyle uncramped"><span class="mord"><span class="mord mathit" style="margin-right:0.03588em;">ω</span>
+            <span class="vlist"><span style="top:-0.363em;margin-right:0.05em;"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>
+            <span class="reset-textstyle scriptstyle uncramped"><span class="mord scriptstyle uncramped"><span class="mord mathrm">′</span></span>
+            </span>
+            </span><span class="baseline-fix"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>​</span>
+            </span>
+            </span>
+            </span>
+            </span>
+            </span>
+        </eq> is scattered in the direction of the ray
+        <eq><span class="katex"><span class="katex-mathml"><math><semantics><mrow><mi>ω</mi></mrow><annotation encoding="application/x-tex">\omega</annotation></semantics></math></span>
+            <span class="katex-html" aria-hidden="true"><span class="strut" style="height:0.43056em;"></span><span class="strut bottom"
+                style="height:0.43056em;vertical-align:0em;"></span>
+            <span class="base textstyle uncramped"><span class="mord mathit" style="margin-right:0.03588em;">ω</span></span>
+            </span>
+            </span>
+        </eq>.</p>
+    <section>
+        <eqn><span class="katex-display"><span class="katex"><span class="katex-mathml"><math><semantics><mrow><mi>d</mi><msub><mi>L</mi><mi>o</mi></msub><mo>(</mo><mi>x</mi><mo separator="true">,</mo><mi>ω</mi><mo>)</mo><mo>=</mo><msub><mi>σ</mi><mi>s</mi></msub><mo>(</mo><mi>x</mi><mo separator="true">,</mo><mi>ω</mi><mo>)</mo><msub><mo>∫</mo><mrow><msub><mi>S</mi><mn>2</mn></msub></mrow></msub><msub><mi>ρ</mi><mi>p</mi></msub><mo>(</mo><mi>x</mi><mo separator="true">,</mo><msup><mi>ω</mi><mrow><mi mathvariant="normal">′</mi></mrow></msup><mo separator="true">,</mo><mi>ω</mi><mo>)</mo><mi>L</mi><mi>i</mi><mo>(</mo><mi>x</mi><mo separator="true">,</mo><msup><mi>ω</mi><mrow><mi mathvariant="normal">′</mi></mrow></msup><mo>)</mo><mi>d</mi><msup><mi>ω</mi><mrow><mi mathvariant="normal">′</mi></mrow></msup><mi>d</mi><mi>t</mi></mrow><annotation encoding="application/x-tex">dL\_o(x, \\omega) = \\sigma\_s(x, \\omega)\\int\_{S\_2}\\rho\_p(x, \\omega&#x27;, \\omega)Li(x, \\omega&#x27;)d\\omega&#x27;dt</annotation></semantics></math></span>
+            <span class="katex-html" aria-hidden="true"><span class="strut" style="height:1.36em;"></span><span class="strut bottom"
+                style="height:2.37725em;vertical-align:-1.01725em;"></span>
+            <span class="base displaystyle textstyle uncramped"><span class="mord mathit">d</span><span class="mord"><span class="mord mathit">L</span>
+            <span class="vlist"><span style="top:0.15em;margin-right:0.05em;margin-left:0em;"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>
+            <span class="reset-textstyle scriptstyle cramped"><span class="mord mathit">o</span></span>
+            </span><span class="baseline-fix"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>​</span>
+            </span>
+            </span><span class="mopen">(</span><span class="mord mathit">x</span><span class="mpunct">,</span>
+            <span class="mord mathit" style="margin-right:0.03588em;">ω</span><span class="mclose">)</span><span class="mrel">=</span>
+            <span class="mord"><span class="mord mathit" style="margin-right:0.03588em;">σ</span>
+            <span class="vlist"><span style="top:0.15em;margin-right:0.05em;margin-left:-0.03588em;"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>
+            <span class="reset-textstyle scriptstyle cramped"><span class="mord mathit">s</span></span>
+            </span><span class="baseline-fix"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>​</span>
+            </span>
+            </span><span class="mopen">(</span><span class="mord mathit">x</span><span class="mpunct">,</span>
+            <span class="mord mathit" style="margin-right:0.03588em;">ω</span><span class="mclose">)</span>
+            <span class="mop"><span class="op-symbol large-op mop" style="margin-right:0.44445em;top:-0.0011249999999999316em;">∫</span>
+            <span class="vlist"><span style="top:0.91225em;margin-right:0.05em;margin-left:-0.44445em;"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>
+            <span class="reset-textstyle scriptstyle cramped"><span class="mord scriptstyle cramped"><span class="mord"><span class="mord mathit" style="margin-right:0.05764em;">S</span>
+            <span class="vlist"><span style="top:0.15em;margin-right:0.07142857142857144em;margin-left:-0.05764em;"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>
+            <span class="reset-scriptstyle scriptscriptstyle cramped"><span class="mord mathrm">2</span></span>
+            </span><span class="baseline-fix"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>​</span>
+            </span>
+            </span>
+            </span>
+            </span>
+            </span><span class="baseline-fix"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>​</span>
+            </span>
+            </span><span class="mord"><span class="mord mathit">ρ</span><span class="vlist"><span style="top:0.15em;margin-right:0.05em;margin-left:0em;"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>
+            <span class="reset-textstyle scriptstyle cramped"><span class="mord mathit">p</span></span>
+            </span><span class="baseline-fix"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>​</span>
+            </span>
+            </span><span class="mopen">(</span><span class="mord mathit">x</span>
+            <span class="mpunct">,</span><span class="mord"><span class="mord mathit" style="margin-right:0.03588em;">ω</span>
+            <span class="vlist"><span style="top:-0.413em;margin-right:0.05em;"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>
+            <span class="reset-textstyle scriptstyle uncramped"><span class="mord scriptstyle uncramped"><span class="mord mathrm">′</span></span>
+            </span>
+            </span><span class="baseline-fix"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>​</span>
+            </span>
+            </span><span class="mpunct">,</span><span class="mord mathit" style="margin-right:0.03588em;">ω</span>
+            <span class="mclose">)</span>
+            <span class="mord mathit">L</span><span class="mord mathit">i</span><span class="mopen">(</span>
+            <span class="mord mathit">x</span><span class="mpunct">,</span><span class="mord"><span class="mord mathit" style="margin-right:0.03588em;">ω</span>
+            <span class="vlist"><span style="top:-0.413em;margin-right:0.05em;"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>
+            <span class="reset-textstyle scriptstyle uncramped"><span class="mord scriptstyle uncramped"><span class="mord mathrm">′</span></span>
+            </span>
+            </span><span class="baseline-fix"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>​</span>
+            </span>
+            </span><span class="mclose">)</span>
+            <span class="mord mathit">d</span><span class="mord"><span class="mord mathit" style="margin-right:0.03588em;">ω</span>
+            <span class="vlist"><span style="top:-0.413em;margin-right:0.05em;"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>
+            <span class="reset-textstyle scriptstyle uncramped"><span class="mord scriptstyle uncramped"><span class="mord mathrm">′</span></span>
+            </span>
+            </span><span class="baseline-fix"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>​</span>
+            </span>
+            </span><span class="mord mathit">d</span>
+            <span class="mord mathit">t</span>
+            </span>
+            </span>
+            </span>
+            </span>
+        </eqn>
+    </section>
+    <h3>2.2 Phase functions and BSDF</h3>
+    <p>The phase function, similar to the BSDF function for surface interactions,
+        <eq><span class="katex"><span class="katex-mathml"><math><semantics><mrow><msub><mi>ρ</mi><mi>p</mi></msub></mrow><annotation encoding="application/x-tex">\rho_p</annotation></semantics></math></span>
+            <span class="katex-html" aria-hidden="true"><span class="strut" style="height:0.43056em;"></span><span class="strut bottom"
+                style="height:0.716668em;vertical-align:-0.286108em;"></span>
+            <span class="base textstyle uncramped"><span class="mord"><span class="mord mathit">ρ</span><span class="vlist"><span style="top:0.15em;margin-right:0.05em;margin-left:0em;"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>
+            <span class="reset-textstyle scriptstyle cramped"><span class="mord mathit">p</span></span>
+            </span><span class="baseline-fix"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>​</span>
+            </span>
+            </span>
+            </span>
+            </span>
+            </span>
+        </eq> represents the fraction of light that is scattered into the ray direction
+        <eq><span class="katex"><span class="katex-mathml"><math><semantics><mrow><mi>ω</mi></mrow><annotation encoding="application/x-tex">\omega</annotation></semantics></math></span>
+            <span class="katex-html" aria-hidden="true"><span class="strut" style="height:0.43056em;"></span><span class="strut bottom"
+                style="height:0.43056em;vertical-align:0em;"></span>
+            <span class="base textstyle uncramped"><span class="mord mathit" style="margin-right:0.03588em;">ω</span></span>
+            </span>
+            </span>
+        </eq>. For <em>godRay</em> we are using the Henyey Greenstien phase function <code>reference</code> which allows for a
+        single asymmetry value
+        <eq><span class="katex"><span class="katex-mathml"><math><semantics><mrow><mi>g</mi></mrow><annotation encoding="application/x-tex">g</annotation></semantics></math></span>
+            <span class="katex-html" aria-hidden="true"><span class="strut" style="height:0.43056em;"></span><span class="strut bottom"
+                style="height:0.625em;vertical-align:-0.19444em;"></span>
+            <span class="base textstyle uncramped"><span class="mord mathit" style="margin-right:0.03588em;">g</span></span>
+            </span>
+            </span>
+        </eq> between the range [-1.0, 1.0] to paramaterize the scattering angle. When
+        <eq><span class="katex"><span class="katex-mathml"><math><semantics><mrow><mi>g</mi><mo>=</mo><mo>−</mo><mn>1</mn><mi mathvariant="normal">.</mi><mn>0</mn></mrow><annotation encoding="application/x-tex">g = -1.0</annotation></semantics></math></span>
+            <span class="katex-html" aria-hidden="true"><span class="strut" style="height:0.64444em;"></span><span class="strut bottom"
+                style="height:0.8388800000000001em;vertical-align:-0.19444em;"></span>
+            <span class="base textstyle uncramped"><span class="mord mathit" style="margin-right:0.03588em;">g</span>
+            <span class="mrel">=</span><span class="mord">−</span>
+            <span class="mord mathrm">1</span><span class="mord mathrm">.</span><span class="mord mathrm">0</span></span>
+            </span>
+            </span>
+        </eq> there is perfect back scattering while when
+        <eq><span class="katex"><span class="katex-mathml"><math><semantics><mrow><mi>g</mi><mo>=</mo><mn>1</mn><mi mathvariant="normal">.</mi><mn>0</mn></mrow><annotation encoding="application/x-tex">g = 1.0</annotation></semantics></math></span>
+            <span class="katex-html" aria-hidden="true"><span class="strut" style="height:0.64444em;"></span><span class="strut bottom"
+                style="height:0.8388800000000001em;vertical-align:-0.19444em;"></span>
+            <span class="base textstyle uncramped"><span class="mord mathit" style="margin-right:0.03588em;">g</span>
+            <span class="mrel">=</span><span class="mord mathrm">1</span>
+            <span class="mord mathrm">.</span><span class="mord mathrm">0</span></span>
+            </span>
+            </span>
+        </eq> there is perfect forward scattering. When
+        <eq><span class="katex"><span class="katex-mathml"><math><semantics><mrow><mi>g</mi><mo>=</mo><mn>0</mn><mi mathvariant="normal">.</mi><mn>0</mn></mrow><annotation encoding="application/x-tex">g = 0.0</annotation></semantics></math></span>
+            <span class="katex-html" aria-hidden="true"><span class="strut" style="height:0.64444em;"></span><span class="strut bottom"
+                style="height:0.8388800000000001em;vertical-align:-0.19444em;"></span>
+            <span class="base textstyle uncramped"><span class="mord mathit" style="margin-right:0.03588em;">g</span>
+            <span class="mrel">=</span><span class="mord mathrm">0</span>
+            <span class="mord mathrm">.</span><span class="mord mathrm">0</span></span>
+            </span>
+            </span>
+        </eq> scattering is isotropic with uniform probability of scattering in every direction.</p>
+    <section>
+        <eqn><span class="katex-display"><span class="katex"><span class="katex-mathml"><math><semantics><mrow><msub><mi>ρ</mi><mi>p</mi></msub><mo>(</mo><mi>x</mi><mo separator="true">,</mo><msup><mi>ω</mi><mrow><mi mathvariant="normal">′</mi></mrow></msup><mo separator="true">,</mo><mi>ω</mi><mo>)</mo><mo>=</mo><mrow><mfrac><mrow><mn>1</mn></mrow><mrow><mn>4</mn><mi>π</mi></mrow></mfrac></mrow><mrow><mfrac><mrow><mn>1</mn><mo>−</mo><msup><mi>g</mi><mn>2</mn></msup></mrow><mrow><mo>(</mo><mn>1</mn><mo>+</mo><msup><mi>g</mi><mn>2</mn></msup><mo>−</mo><mn>2</mn><mi>g</mi><mi>cos</mi><mi>θ</mi><msup><mo>)</mo><mrow><mn>3</mn><mi mathvariant="normal">/</mi><mn>2</mn></mrow></msup></mrow></mfrac></mrow></mrow><annotation encoding="application/x-tex">\\rho\_p(x, \\omega&#x27;, \\omega) = {1\\over4\\pi}{1-g^2\\over(1+g^2-2g\\cos\\theta)^{3/2}}</annotation></semantics></math></span>
+            <span class="katex-html" aria-hidden="true"><span class="strut" style="height:1.491108em;"></span><span class="strut bottom"
+                style="height:2.4451080000000003em;vertical-align:-0.954em;"></span>
+            <span class="base displaystyle textstyle uncramped"><span class="mord"><span class="mord mathit">ρ</span>
+            <span class="vlist"><span style="top:0.15em;margin-right:0.05em;margin-left:0em;"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>
+            <span class="reset-textstyle scriptstyle cramped"><span class="mord mathit">p</span></span>
+            </span><span class="baseline-fix"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>​</span>
+            </span>
+            </span><span class="mopen">(</span><span class="mord mathit">x</span><span class="mpunct">,</span>
+            <span class="mord"><span class="mord mathit" style="margin-right:0.03588em;">ω</span><span class="vlist"><span style="top:-0.413em;margin-right:0.05em;"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>
+            <span class="reset-textstyle scriptstyle uncramped"><span class="mord scriptstyle uncramped"><span class="mord mathrm">′</span></span>
+            </span>
+            </span><span class="baseline-fix"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>​</span>
+            </span>
+            </span><span class="mpunct">,</span><span class="mord mathit" style="margin-right:0.03588em;">ω</span>
+            <span class="mclose">)</span><span class="mrel">=</span><span class="mord displaystyle textstyle uncramped"><span class="mord reset-textstyle displaystyle textstyle uncramped"><span class="sizing reset-size5 size5 reset-textstyle textstyle uncramped nulldelimiter"></span>
+            <span class="mfrac"><span class="vlist"><span style="top:0.686em;"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>
+            <span class="reset-textstyle textstyle cramped"><span class="mord textstyle cramped"><span class="mord mathrm">4</span>
+            <span class="mord mathit" style="margin-right:0.03588em;">π</span>
+            </span>
+            </span>
+            </span><span style="top:-0.22999999999999998em;"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>
+            <span class="reset-textstyle textstyle uncramped frac-line"></span>
+            </span><span style="top:-0.677em;"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>
+            <span class="reset-textstyle textstyle uncramped"><span class="mord textstyle uncramped"><span class="mord mathrm">1</span></span>
+            </span>
+            </span><span class="baseline-fix"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>​</span>
+            </span>
+            </span><span class="sizing reset-size5 size5 reset-textstyle textstyle uncramped nulldelimiter"></span></span>
+            </span><span class="mord displaystyle textstyle uncramped"><span class="mord reset-textstyle displaystyle textstyle uncramped"><span class="sizing reset-size5 size5 reset-textstyle textstyle uncramped nulldelimiter"></span>
+            <span class="mfrac"><span class="vlist"><span style="top:0.704em;"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>
+            <span class="reset-textstyle textstyle cramped"><span class="mord textstyle cramped"><span class="mopen">(</span>
+            <span class="mord mathrm">1</span><span class="mbin">+</span><span class="mord"><span class="mord mathit" style="margin-right:0.03588em;">g</span>
+            <span class="vlist"><span style="top:-0.289em;margin-right:0.05em;"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>
+            <span class="reset-textstyle scriptstyle cramped"><span class="mord mathrm">2</span></span>
+            </span><span class="baseline-fix"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>​</span>
+            </span>
+            </span><span class="mbin">−</span><span class="mord mathrm">2</span>
+            <span class="mord mathit" style="margin-right:0.03588em;">g</span><span class="mop">cos</span><span class="mord mathit"
+                style="margin-right:0.02778em;">θ</span>
+            <span class="mclose"><span class="mclose">)</span><span class="vlist"><span style="top:-0.289em;margin-right:0.05em;"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>
+            <span class="reset-textstyle scriptstyle cramped"><span class="mord scriptstyle cramped"><span class="mord mathrm">3</span>
+            <span class="mord mathrm">/</span><span class="mord mathrm">2</span></span>
+            </span>
+            </span><span class="baseline-fix"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>​</span>
+            </span>
+            </span>
+            </span>
+            </span>
+            </span><span style="top:-0.22999999999999998em;"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>
+            <span class="reset-textstyle textstyle uncramped frac-line"></span>
+            </span><span style="top:-0.677em;"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>
+            <span class="reset-textstyle textstyle uncramped"><span class="mord textstyle uncramped"><span class="mord mathrm">1</span>
+            <span class="mbin">−</span><span class="mord"><span class="mord mathit" style="margin-right:0.03588em;">g</span>
+            <span class="vlist"><span style="top:-0.363em;margin-right:0.05em;"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>
+            <span class="reset-textstyle scriptstyle uncramped"><span class="mord mathrm">2</span></span>
+            </span><span class="baseline-fix"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>​</span>
+            </span>
+            </span>
+            </span>
+            </span>
+            </span><span class="baseline-fix"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>​</span>
+            </span>
+            </span><span class="sizing reset-size5 size5 reset-textstyle textstyle uncramped nulldelimiter"></span></span>
+            </span>
+            </span>
+            </span>
+            </span>
+            </span>
+        </eqn>
+    </section>
+    <p>In <em>godRay</em>, in order to focus on the volumetric effects of the god ray we are only considering a basic Lambertian
+        bidirectional reflectance distribution function or BRDF <code>reference</code> representing an ideal matte surface.
+        While the Lambertian model is not physically based it provides a significant simplification of the model. For a more
+        physically based diffuse surface, the microfacet model <code>reference</code> could be considered. In our case however
+        <eq><span class="katex"><span class="katex-mathml"><math><semantics><mrow><msub><mi>ρ</mi><mi>r</mi></msub></mrow><annotation encoding="application/x-tex">\rho_r</annotation></semantics></math></span>
+            <span class="katex-html" aria-hidden="true"><span class="strut" style="height:0.43056em;"></span><span class="strut bottom"
+                style="height:0.625em;vertical-align:-0.19444em;"></span>
+            <span class="base textstyle uncramped"><span class="mord"><span class="mord mathit">ρ</span><span class="vlist"><span style="top:0.15em;margin-right:0.05em;margin-left:0em;"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>
+            <span class="reset-textstyle scriptstyle cramped"><span class="mord mathit" style="margin-right:0.02778em;">r</span></span>
+            </span><span class="baseline-fix"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>​</span>
+            </span>
+            </span>
+            </span>
+            </span>
+            </span>
+        </eq> represents the BRDF while
+        <eq><span class="katex"><span class="katex-mathml"><math><semantics><mrow><mi>s</mi><mi>i</mi><mi>g</mi><mi>m</mi><msub><mi>a</mi><mi>r</mi></msub></mrow><annotation encoding="application/x-tex">sigma_r</annotation></semantics></math></span>
+            <span class="katex-html" aria-hidden="true"><span class="strut" style="height:0.65952em;"></span><span class="strut bottom"
+                style="height:0.85396em;vertical-align:-0.19444em;"></span>
+            <span class="base textstyle uncramped"><span class="mord mathit">s</span><span class="mord mathit">i</span>
+            <span class="mord mathit" style="margin-right:0.03588em;">g</span>
+            <span class="mord mathit">m</span><span class="mord"><span class="mord mathit">a</span><span class="vlist"><span style="top:0.15em;margin-right:0.05em;margin-left:0em;"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>
+            <span class="reset-textstyle scriptstyle cramped"><span class="mord mathit" style="margin-right:0.02778em;">r</span></span>
+            </span><span class="baseline-fix"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>​</span>
+            </span>
+            </span>
+            </span>
+            </span>
+            </span>
+        </eq> represents the diffuse reflectance coefficient of the surface interaction.</p>
+    <section>
+        <eqn><span class="katex-display"><span class="katex"><span class="katex-mathml"><math><semantics><mrow><msub><mi>ρ</mi><mi>r</mi></msub><mo>(</mo><mi>x</mi><mo separator="true">,</mo><mi>ω</mi><mo separator="true">,</mo><msup><mi>ω</mi><mrow><mi mathvariant="normal">′</mi></mrow></msup><mo>)</mo><mo>=</mo><mrow><mfrac><mrow><msub><mi>σ</mi><mi>r</mi></msub></mrow><mrow><mi>π</mi></mrow></mfrac></mrow></mrow><annotation encoding="application/x-tex">\\rho\_r(x, \\omega, \\omega&#x27;) = {\\sigma\_r\\over\\pi}</annotation></semantics></math></span>
+            <span class="katex-html" aria-hidden="true"><span class="strut" style="height:1.10756em;"></span><span class="strut bottom"
+                style="height:1.7935600000000003em;vertical-align:-0.686em;"></span>
+            <span class="base displaystyle textstyle uncramped"><span class="mord"><span class="mord mathit">ρ</span>
+            <span class="vlist"><span style="top:0.15em;margin-right:0.05em;margin-left:0em;"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>
+            <span class="reset-textstyle scriptstyle cramped"><span class="mord mathit" style="margin-right:0.02778em;">r</span></span>
+            </span><span class="baseline-fix"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>​</span>
+            </span>
+            </span><span class="mopen">(</span><span class="mord mathit">x</span><span class="mpunct">,</span>
+            <span class="mord mathit" style="margin-right:0.03588em;">ω</span><span class="mpunct">,</span><span class="mord"><span class="mord mathit" style="margin-right:0.03588em;">ω</span>
+            <span class="vlist"><span style="top:-0.413em;margin-right:0.05em;"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>
+            <span class="reset-textstyle scriptstyle uncramped"><span class="mord scriptstyle uncramped"><span class="mord mathrm">′</span></span>
+            </span>
+            </span><span class="baseline-fix"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>​</span>
+            </span>
+            </span><span class="mclose">)</span><span class="mrel">=</span><span class="mord displaystyle textstyle uncramped"><span class="mord reset-textstyle displaystyle textstyle uncramped"><span class="sizing reset-size5 size5 reset-textstyle textstyle uncramped nulldelimiter"></span>
+            <span class="mfrac"><span class="vlist"><span style="top:0.686em;"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>
+            <span class="reset-textstyle textstyle cramped"><span class="mord textstyle cramped"><span class="mord mathit" style="margin-right:0.03588em;">π</span></span>
+            </span>
+            </span><span style="top:-0.22999999999999998em;"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>
+            <span class="reset-textstyle textstyle uncramped frac-line"></span>
+            </span><span style="top:-0.677em;"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>
+            <span class="reset-textstyle textstyle uncramped"><span class="mord textstyle uncramped"><span class="mord"><span class="mord mathit" style="margin-right:0.03588em;">σ</span>
+            <span class="vlist"><span style="top:0.15em;margin-right:0.05em;margin-left:-0.03588em;"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>
+            <span class="reset-textstyle scriptstyle cramped"><span class="mord mathit" style="margin-right:0.02778em;">r</span></span>
+            </span><span class="baseline-fix"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>​</span>
+            </span>
+            </span>
+            </span>
+            </span>
+            </span><span class="baseline-fix"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>​</span>
+            </span>
+            </span><span class="sizing reset-size5 size5 reset-textstyle textstyle uncramped nulldelimiter"></span></span>
+            </span>
+            </span>
+            </span>
+            </span>
+            </span>
+        </eqn>
+    </section>
+    <h3>2.3 Volume Rendering Equation</h3>
+    <p>The volume rendering equation for radiance
+        <eq><span class="katex"><span class="katex-mathml"><math><semantics><mrow><mi>L</mi><mo>(</mo><mi>x</mi><mo separator="true">,</mo><mi>ω</mi><mo>)</mo></mrow><annotation encoding="application/x-tex">L(x, \omega)</annotation></semantics></math></span>
+            <span class="katex-html" aria-hidden="true"><span class="strut" style="height:0.75em;"></span><span class="strut bottom"
+                style="height:1em;vertical-align:-0.25em;"></span>
+            <span class="base textstyle uncramped"><span class="mord mathit">L</span><span class="mopen">(</span><span class="mord mathit">x</span>
+            <span class="mpunct">,</span>
+            <span class="mord mathit" style="margin-right:0.03588em;">ω</span><span class="mclose">)</span></span>
+            </span>
+            </span>
+        </eq> must consider the different effects of either scattering at a surface or within the media. Therefore along a given
+        path segment we will sample a scattering event along the path and test whether or not the media intersection occurred
+        before a surface intersection. If the scattering event occurred in the media, radiance,
+        <eq><span class="katex"><span class="katex-mathml"><math><semantics><mrow><msub><mi>L</mi><mrow><mi>a</mi><mi>t</mi><mi>m</mi><mi>o</mi><mi>s</mi></mrow></msub><mo>(</mo><mi>x</mi><mo separator="true">,</mo><mi>ω</mi><mo>)</mo></mrow><annotation encoding="application/x-tex">L_{atmos}(x, \omega)</annotation></semantics></math></span>
+            <span class="katex-html" aria-hidden="true"><span class="strut" style="height:0.75em;"></span><span class="strut bottom"
+                style="height:1em;vertical-align:-0.25em;"></span>
+            <span class="base textstyle uncramped"><span class="mord"><span class="mord mathit">L</span><span class="vlist"><span style="top:0.15em;margin-right:0.05em;margin-left:0em;"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>
+            <span class="reset-textstyle scriptstyle cramped"><span class="mord scriptstyle cramped"><span class="mord mathit">a</span>
+            <span class="mord mathit">t</span>
+            <span class="mord mathit">m</span><span class="mord mathit">o</span><span class="mord mathit">s</span></span>
+            </span>
+            </span><span class="baseline-fix"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>​</span>
+            </span>
+            </span><span class="mopen">(</span><span class="mord mathit">x</span><span class="mpunct">,</span>
+            <span class="mord mathit" style="margin-right:0.03588em;">ω</span><span class="mclose">)</span></span>
+            </span>
+            </span>
+        </eq>, will be calculated based off of the participating media equations and parameters set for the globally defined homogeneous
+        atmosphere. If the scattering event occurs at a surface, the radiance,
+        <eq><span class="katex"><span class="katex-mathml"><math><semantics><mrow><msub><mi>L</mi><mrow><mi>s</mi><mi>u</mi><mi>r</mi><mi>f</mi></mrow></msub><mo>(</mo><mi>x</mi><mo separator="true">,</mo><mi>ω</mi><mo>)</mo></mrow><annotation encoding="application/x-tex">L_{surf}(x, \omega)</annotation></semantics></math></span>
+            <span class="katex-html" aria-hidden="true"><span class="strut" style="height:0.75em;"></span><span class="strut bottom"
+                style="height:1.036108em;vertical-align:-0.286108em;"></span>
+            <span class="base textstyle uncramped"><span class="mord"><span class="mord mathit">L</span><span class="vlist"><span style="top:0.15em;margin-right:0.05em;margin-left:0em;"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>
+            <span class="reset-textstyle scriptstyle cramped"><span class="mord scriptstyle cramped"><span class="mord mathit">s</span>
+            <span class="mord mathit">u</span>
+            <span class="mord mathit" style="margin-right:0.02778em;">r</span><span class="mord mathit" style="margin-right:0.10764em;">f</span></span>
+            </span>
+            </span><span class="baseline-fix"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>​</span>
+            </span>
+            </span><span class="mopen">(</span><span class="mord mathit">x</span><span class="mpunct">,</span>
+            <span class="mord mathit" style="margin-right:0.03588em;">ω</span><span class="mclose">)</span></span>
+            </span>
+            </span>
+        </eq>,for the path will be calculated as per the Kajiya rendering equation <code>reference</code>. The radiance for the
+        path is then scaled according to the transmittance function for the atmospheric media along the path length. The
+        following volume rendering equation adapts the Kajiya model to account for scattering events that occur within the
+        globally defined atmospheric media.</p>
+    <section>
+        <eqn><span class="katex-display"><span class="katex"><span class="katex-mathml"><math><semantics><mrow><mi>L</mi><mo>(</mo><mi>x</mi><mo separator="true">,</mo><mi>ω</mi><mo>)</mo><mo>=</mo><msubsup><mo>∫</mo><mrow><mn>0</mn></mrow><mrow><mi mathvariant="normal">∞</mi></mrow></msubsup><mrow><mo fence="true">[</mo><msub><mi>t</mi><mrow><mi>a</mi><mi>t</mi><mi>m</mi><mi>o</mi><mi>s</mi></mrow></msub><mo>&lt;</mo><msub><mi>t</mi><mrow><mi>s</mi><mi>u</mi><mi>r</mi><mi>f</mi></mrow></msub><mspace width="1em"></mspace><mo>?</mo><mspace width="1em"></mspace><msub><mi>L</mi><mrow><mi>a</mi><mi>t</mi><mi>m</mi><mi>o</mi><mi>s</mi></mrow></msub><mo>(</mo><mi>x</mi><mo>+</mo><mi>s</mi><mi>ω</mi><mo separator="true">,</mo><mo>−</mo><mi>ω</mi><mo>)</mo><mspace width="1em"></mspace><mo>:</mo><mspace width="1em"></mspace><msub><mi>L</mi><mrow><mi>s</mi><mi>u</mi><mi>r</mi><mi>f</mi></mrow></msub><mo>(</mo><mi>x</mi><mo>+</mo><mi>d</mi><mi>ω</mi><mo separator="true">,</mo><mo>−</mo><mi>ω</mi><mo>)</mo><mo fence="true">]</mo></mrow><msub><mi>σ</mi><mrow><mi>t</mi></mrow></msub><msup><mi>e</mi><mrow><mo>−</mo><msub><mi>σ</mi><mrow><mi>t</mi></mrow></msub><msub><mi>d</mi><mi>s</mi></msub></mrow></msup></mrow><annotation encoding="application/x-tex">L(x,\\omega) = \\int\_{0}^{\\infty}\\left[t\_{atmos} &lt; t\_{surf}\\quad?\\quad L\_{atmos}(x + s\\omega, -\\omega)\\quad:\\quad L\_{surf}(x + d\\omega, -\\omega)\\right]\\sigma\_{t}e^{-\\sigma\_{t}d\_s}</annotation></semantics></math></span>
+            <span class="katex-html" aria-hidden="true"><span class="strut" style="height:1.36em;"></span><span class="strut bottom"
+                style="height:2.27225em;vertical-align:-0.91225em;"></span>
+            <span class="base displaystyle textstyle uncramped"><span class="mord mathit">L</span><span class="mopen">(</span>
+            <span class="mord mathit">x</span><span class="mpunct">,</span>
+            <span class="mord mathit" style="margin-right:0.03588em;">ω</span><span class="mclose">)</span><span class="mrel">=</span>
+            <span class="mop"><span class="op-symbol large-op mop" style="margin-right:0.44445em;top:-0.0011249999999999316em;">∫</span>
+            <span class="vlist"><span style="top:0.91225em;margin-left:-0.44445em;margin-right:0.05em;"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>
+            <span class="reset-textstyle scriptstyle cramped"><span class="mord scriptstyle cramped"><span class="mord mathrm">0</span></span>
+            </span>
+            </span><span style="top:-0.9739999999999999em;margin-right:0.05em;"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>
+            <span class="reset-textstyle scriptstyle uncramped"><span class="mord scriptstyle uncramped"><span class="mord mathrm">∞</span></span>
+            </span>
+            </span><span class="baseline-fix"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>​</span>
+            </span>
+            </span><span class="minner displaystyle textstyle uncramped"><span class="style-wrap reset-textstyle textstyle uncramped" style="top:0em;">[</span>
+            <span class="mord"><span class="mord mathit">t</span><span class="vlist"><span style="top:0.15em;margin-right:0.05em;margin-left:0em;"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>
+            <span class="reset-textstyle scriptstyle cramped"><span class="mord scriptstyle cramped"><span class="mord mathit">a</span>
+            <span class="mord mathit">t</span>
+            <span class="mord mathit">m</span><span class="mord mathit">o</span><span class="mord mathit">s</span></span>
+            </span>
+            </span><span class="baseline-fix"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>​</span>
+            </span>
+            </span><span class="mrel">&lt;</span><span class="mord"><span class="mord mathit">t</span>
+            <span class="vlist"><span style="top:0.15em;margin-right:0.05em;margin-left:0em;"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>
+            <span class="reset-textstyle scriptstyle cramped"><span class="mord scriptstyle cramped"><span class="mord mathit">s</span>
+            <span class="mord mathit">u</span><span class="mord mathit" style="margin-right:0.02778em;">r</span>
+            <span class="mord mathit" style="margin-right:0.10764em;">f</span>
+            </span>
+            </span>
+            </span><span class="baseline-fix"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>​</span>
+            </span>
+            </span><span class="mord mspace quad"></span><span class="mclose">?</span>
+            <span class="mord mspace quad"></span><span class="mord"><span class="mord mathit">L</span>
+            <span class="vlist"><span style="top:0.15em;margin-right:0.05em;margin-left:0em;"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>
+            <span class="reset-textstyle scriptstyle cramped"><span class="mord scriptstyle cramped"><span class="mord mathit">a</span>
+            <span class="mord mathit">t</span><span class="mord mathit">m</span>
+            <span class="mord mathit">o</span><span class="mord mathit">s</span></span>
+            </span>
+            </span><span class="baseline-fix"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>​</span>
+            </span>
+            </span><span class="mopen">(</span><span class="mord mathit">x</span>
+            <span class="mbin">+</span><span class="mord mathit">s</span>
+            <span class="mord mathit" style="margin-right:0.03588em;">ω</span><span class="mpunct">,</span>
+            <span class="mord">−</span><span class="mord mathit" style="margin-right:0.03588em;">ω</span>
+            <span class="mclose">)</span><span class="mord mspace quad"></span>
+            <span class="mrel">:</span><span class="mord mspace quad"></span>
+            <span class="mord"><span class="mord mathit">L</span>
+            <span class="vlist"><span style="top:0.15em;margin-right:0.05em;margin-left:0em;"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>
+            <span class="reset-textstyle scriptstyle cramped"><span class="mord scriptstyle cramped"><span class="mord mathit">s</span>
+            <span class="mord mathit">u</span>
+            <span class="mord mathit" style="margin-right:0.02778em;">r</span>
+            <span class="mord mathit" style="margin-right:0.10764em;">f</span>
+            </span>
+            </span>
+            </span>
+            <span class="baseline-fix">
+                                                                                                                                    <span
+                                                                                                                                        class="fontsize-ensurer reset-size5 size5">
+                                                                                                                                        <span
+                                                                                                                                            style="font-size:0em;">​</span>
+            </span>​</span>
+            </span>
+            </span>
+            <span class="mopen">(</span>
+            <span class="mord mathit">x</span>
+            <span class="mbin">+</span>
+            <span class="mord mathit">d</span>
+            <span class="mord mathit" style="margin-right:0.03588em;">ω</span>
+            <span class="mpunct">,</span>
+            <span class="mord">−</span>
+            <span class="mord mathit" style="margin-right:0.03588em;">ω</span>
+            <span class="mclose">)</span>
+            <span class="style-wrap reset-textstyle textstyle uncramped" style="top:0em;">]</span>
+            </span>
+            <span class="mord">
+                                                                                                                                                                                        <span
+                                                                                                                                                                                            class="mord mathit"
+                                                                                                                                                                                            style="margin-right:0.03588em;">σ</span>
+            <span class="vlist">
+                                                                                                                                                                                                <span
+                                                                                                                                                                                                    style="top:0.15em;margin-right:0.05em;margin-left:-0.03588em;">
+                                                                                                                                                                                                    <span
+                                                                                                                                                                                                        class="fontsize-ensurer reset-size5 size5">
+                                                                                                                                                                                                        <span
+                                                                                                                                                                                                            style="font-size:0em;">​</span>
+            </span>
+            <span class="reset-textstyle scriptstyle cramped">
+                                                                                                                                                                                                                <span
+                                                                                                                                                                                                                    class="mord scriptstyle cramped">
+                                                                                                                                                                                                                    <span
+                                                                                                                                                                                                                        class="mord mathit">t</span>
+            </span>
+            </span>
+            </span>
+            <span class="baseline-fix">
+                                                                                                                                                                                                                            <span
+                                                                                                                                                                                                                                class="fontsize-ensurer reset-size5 size5">
+                                                                                                                                                                                                                                <span
+                                                                                                                                                                                                                                    style="font-size:0em;">​</span>
+            </span>​</span>
+            </span>
+            </span>
+            <span class="mord">
+                                                                                                                                                                                                                                        <span
+                                                                                                                                                                                                                                            class="mord mathit">e</span>
+            <span class="vlist">
+                                                                                                                                                                                                                                                <span
+                                                                                                                                                                                                                                                    style="top:-0.413em;margin-right:0.05em;">
+                                                                                                                                                                                                                                                    <span
+                                                                                                                                                                                                                                                        class="fontsize-ensurer reset-size5 size5">
+                                                                                                                                                                                                                                                        <span
+                                                                                                                                                                                                                                                            style="font-size:0em;">​</span>
+            </span>
+            <span class="reset-textstyle scriptstyle uncramped">
+                                                                                                                                                                                                                                                                <span
+                                                                                                                                                                                                                                                                    class="mord scriptstyle uncramped">
+                                                                                                                                                                                                                                                                    <span
+                                                                                                                                                                                                                                                                        class="mord">−</span>
+            <span class="mord">
+                                                                                                                                                                                                                                                                            <span
+                                                                                                                                                                                                                                                                                class="mord mathit"
+                                                                                                                                                                                                                                                                                style="margin-right:0.03588em;">σ</span>
+            <span class="vlist">
+                                                                                                                                                                                                                                                                                    <span
+                                                                                                                                                                                                                                                                                        style="top:0.15em;margin-right:0.07142857142857144em;margin-left:-0.03588em;">
+                                                                                                                                                                                                                                                                                        <span
+                                                                                                                                                                                                                                                                                            class="fontsize-ensurer reset-size5 size5">
+                                                                                                                                                                                                                                                                                            <span
+                                                                                                                                                                                                                                                                                                style="font-size:0em;">​</span>
+            </span>
+            <span class="reset-scriptstyle scriptscriptstyle cramped">
+                                                                                                                                                                                                                                                                                                    <span
+                                                                                                                                                                                                                                                                                                        class="mord scriptscriptstyle cramped">
+                                                                                                                                                                                                                                                                                                        <span
+                                                                                                                                                                                                                                                                                                            class="mord mathit">t</span>
+            </span>
+            </span>
+            </span>
+            <span class="baseline-fix">
+                                                                                                                                                                                                                                                                                                                <span
+                                                                                                                                                                                                                                                                                                                    class="fontsize-ensurer reset-size5 size5">
+                                                                                                                                                                                                                                                                                                                    <span
+                                                                                                                                                                                                                                                                                                                        style="font-size:0em;">​</span>
+            </span>​</span>
+            </span>
+            </span>
+            <span class="mord">
+                                                                                                                                                                                                                                                                                                                            <span
+                                                                                                                                                                                                                                                                                                                                class="mord mathit">d</span>
+            <span class="vlist">
+                                                                                                                                                                                                                                                                                                                                    <span
+                                                                                                                                                                                                                                                                                                                                        style="top:0.15em;margin-right:0.07142857142857144em;margin-left:0em;">
+                                                                                                                                                                                                                                                                                                                                        <span
+                                                                                                                                                                                                                                                                                                                                            class="fontsize-ensurer reset-size5 size5">
+                                                                                                                                                                                                                                                                                                                                            <span
+                                                                                                                                                                                                                                                                                                                                                style="font-size:0em;">​</span>
+            </span>
+            <span class="reset-scriptstyle scriptscriptstyle cramped">
+                                                                                                                                                                                                                                                                                                                                                    <span
+                                                                                                                                                                                                                                                                                                                                                        class="mord mathit">s</span>
+            </span>
+            </span>
+            <span class="baseline-fix">
+                                                                                                                                                                                                                                                                                                                                                            <span
+                                                                                                                                                                                                                                                                                                                                                                class="fontsize-ensurer reset-size5 size5">
+                                                                                                                                                                                                                                                                                                                                                                <span
+                                                                                                                                                                                                                                                                                                                                                                    style="font-size:0em;">​</span>
+            </span>​</span>
+            </span>
+            </span>
+            </span>
+            </span>
+            </span>
+            <span class="baseline-fix">
+                                                                                                                                                                                                                                                                                                                                                                        <span
+                                                                                                                                                                                                                                                                                                                                                                            class="fontsize-ensurer reset-size5 size5">
+                                                                                                                                                                                                                                                                                                                                                                            <span
+                                                                                                                                                                                                                                                                                                                                                                                style="font-size:0em;">​</span>
+            </span>​</span>
+            </span>
+            </span>
+            </span>
+            </span>
+            </span>
+            </span>
+        </eqn>
+    </section>
+    <section>
+        <eqn><span class="katex-display"><span class="katex"><span class="katex-mathml"><math><semantics><mrow><msub><mi>L</mi><mrow><mi>a</mi><mi>t</mi><mi>m</mi><mi>o</mi><mi>s</mi></mrow></msub><mo>(</mo><mi>x</mi><mo separator="true">,</mo><mi>ω</mi><mo>)</mo><mo>=</mo><msub><mo>∫</mo><mrow><msub><mi>S</mi><mn>2</mn></msub></mrow></msub><mrow><mfrac><mrow><msub><mi>σ</mi><mi>s</mi></msub></mrow><mrow><msub><mi>σ</mi><mi>t</mi></msub></mrow></mfrac></mrow><msub><mi>ρ</mi><mi>p</mi></msub><mo>(</mo><mi>x</mi><mo separator="true">,</mo><mi>ω</mi><mo separator="true">,</mo><msup><mi>ω</mi><mrow><mi mathvariant="normal">′</mi></mrow></msup><mo>)</mo><mi>L</mi><mo>(</mo><mi>x</mi><mo separator="true">,</mo><msup><mi>ω</mi><mrow><mi mathvariant="normal">′</mi></mrow></msup><mo>)</mo><mi>d</mi><msup><mi>ω</mi><mrow><mi mathvariant="normal">′</mi></mrow></msup></mrow><annotation encoding="application/x-tex">L\_{atmos}(x, \\omega) = \\int\_{S\_2}{\\sigma\_s\\over\\sigma\_t}\\rho\_p(x, \\omega, \\omega&#x27;)L(x, \\omega&#x27;)d\\omega&#x27;</annotation></semantics></math></span>
+            <span class="katex-html" aria-hidden="true"><span class="strut" style="height:1.36em;"></span><span class="strut bottom"
+                style="height:2.37725em;vertical-align:-1.01725em;"></span>
+            <span class="base displaystyle textstyle uncramped"><span class="mord"><span class="mord mathit">L</span>
+            <span class="vlist"><span style="top:0.15em;margin-right:0.05em;margin-left:0em;"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>
+            <span class="reset-textstyle scriptstyle cramped"><span class="mord scriptstyle cramped"><span class="mord mathit">a</span>
+            <span class="mord mathit">t</span>
+            <span class="mord mathit">m</span><span class="mord mathit">o</span><span class="mord mathit">s</span></span>
+            </span>
+            </span><span class="baseline-fix"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>​</span>
+            </span>
+            </span><span class="mopen">(</span><span class="mord mathit">x</span><span class="mpunct">,</span>
+            <span class="mord mathit" style="margin-right:0.03588em;">ω</span><span class="mclose">)</span>
+            <span class="mrel">=</span><span class="mop"><span class="op-symbol large-op mop" style="margin-right:0.44445em;top:-0.0011249999999999316em;">∫</span>
+            <span class="vlist"><span style="top:0.91225em;margin-right:0.05em;margin-left:-0.44445em;"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>
+            <span class="reset-textstyle scriptstyle cramped"><span class="mord scriptstyle cramped"><span class="mord"><span class="mord mathit" style="margin-right:0.05764em;">S</span>
+            <span class="vlist"><span style="top:0.15em;margin-right:0.07142857142857144em;margin-left:-0.05764em;"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>
+            <span class="reset-scriptstyle scriptscriptstyle cramped"><span class="mord mathrm">2</span></span>
+            </span><span class="baseline-fix"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>​</span>
+            </span>
+            </span>
+            </span>
+            </span>
+            </span><span class="baseline-fix"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>​</span>
+            </span>
+            </span><span class="mord displaystyle textstyle uncramped"><span class="mord reset-textstyle displaystyle textstyle uncramped"><span class="sizing reset-size5 size5 reset-textstyle textstyle uncramped nulldelimiter"></span>
+            <span class="mfrac"><span class="vlist"><span style="top:0.686em;"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>
+            <span class="reset-textstyle textstyle cramped"><span class="mord textstyle cramped"><span class="mord"><span class="mord mathit" style="margin-right:0.03588em;">σ</span>
+            <span class="vlist"><span style="top:0.15em;margin-right:0.05em;margin-left:-0.03588em;"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>
+            <span class="reset-textstyle scriptstyle cramped"><span class="mord mathit">t</span></span>
+            </span><span class="baseline-fix"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>​</span>
+            </span>
+            </span>
+            </span>
+            </span>
+            </span><span style="top:-0.22999999999999998em;"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>
+            <span class="reset-textstyle textstyle uncramped frac-line"></span>
+            </span><span style="top:-0.677em;"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>
+            <span class="reset-textstyle textstyle uncramped"><span class="mord textstyle uncramped"><span class="mord"><span class="mord mathit" style="margin-right:0.03588em;">σ</span>
+            <span class="vlist"><span style="top:0.15em;margin-right:0.05em;margin-left:-0.03588em;"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>
+            <span class="reset-textstyle scriptstyle cramped"><span class="mord mathit">s</span></span>
+            </span><span class="baseline-fix"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>​</span>
+            </span>
+            </span>
+            </span>
+            </span>
+            </span><span class="baseline-fix"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>​</span>
+            </span>
+            </span><span class="sizing reset-size5 size5 reset-textstyle textstyle uncramped nulldelimiter"></span></span>
+            </span><span class="mord"><span class="mord mathit">ρ</span>
+            <span class="vlist"><span style="top:0.15em;margin-right:0.05em;margin-left:0em;"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>
+            <span class="reset-textstyle scriptstyle cramped"><span class="mord mathit">p</span></span>
+            </span><span class="baseline-fix"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>​</span>
+            </span>
+            </span><span class="mopen">(</span>
+            <span class="mord mathit">x</span><span class="mpunct">,</span>
+            <span class="mord mathit" style="margin-right:0.03588em;">ω</span><span class="mpunct">,</span>
+            <span class="mord"><span class="mord mathit"
+                                                                                                        style="margin-right:0.03588em;">ω</span>
+            <span class="vlist"><span style="top:-0.413em;margin-right:0.05em;"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>
+            <span class="reset-textstyle scriptstyle uncramped"><span class="mord scriptstyle uncramped"><span class="mord mathrm">′</span></span>
+            </span>
+            </span><span class="baseline-fix"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>​</span>
+            </span>
+            </span><span class="mclose">)</span>
+            <span class="mord mathit">L</span>
+            <span class="mopen">(</span>
+            <span class="mord mathit">x</span>
+            <span class="mpunct">,</span>
+            <span class="mord">
+                                                                                                                                <span
+                                                                                                                                    class="mord mathit"
+                                                                                                                                    style="margin-right:0.03588em;">ω</span>
+            <span class="vlist">
+                                                                                                                                        <span
+                                                                                                                                            style="top:-0.413em;margin-right:0.05em;">
+                                                                                                                                            <span
+                                                                                                                                                class="fontsize-ensurer reset-size5 size5">
+                                                                                                                                                <span
+                                                                                                                                                    style="font-size:0em;">​</span>
+            </span>
+            <span class="reset-textstyle scriptstyle uncramped">
+                                                                                                                                                        <span
+                                                                                                                                                            class="mord scriptstyle uncramped">
+                                                                                                                                                            <span
+                                                                                                                                                                class="mord mathrm">′</span>
+            </span>
+            </span>
+            </span>
+            <span class="baseline-fix">
+                                                                                                                                                                    <span
+                                                                                                                                                                        class="fontsize-ensurer reset-size5 size5">
+                                                                                                                                                                        <span
+                                                                                                                                                                            style="font-size:0em;">​</span>
+            </span>​</span>
+            </span>
+            </span>
+            <span class="mclose">)</span>
+            <span class="mord mathit">d</span>
+            <span class="mord">
+                                                                                                                                                                                        <span
+                                                                                                                                                                                            class="mord mathit"
+                                                                                                                                                                                            style="margin-right:0.03588em;">ω</span>
+            <span class="vlist">
+                                                                                                                                                                                                <span
+                                                                                                                                                                                                    style="top:-0.413em;margin-right:0.05em;">
+                                                                                                                                                                                                    <span
+                                                                                                                                                                                                        class="fontsize-ensurer reset-size5 size5">
+                                                                                                                                                                                                        <span
+                                                                                                                                                                                                            style="font-size:0em;">​</span>
+            </span>
+            <span class="reset-textstyle scriptstyle uncramped">
+                                                                                                                                                                                                                <span
+                                                                                                                                                                                                                    class="mord scriptstyle uncramped">
+                                                                                                                                                                                                                    <span
+                                                                                                                                                                                                                        class="mord mathrm">′</span>
+            </span>
+            </span>
+            </span>
+            <span class="baseline-fix">
+                                                                                                                                                                                                                            <span
+                                                                                                                                                                                                                                class="fontsize-ensurer reset-size5 size5">
+                                                                                                                                                                                                                                <span
+                                                                                                                                                                                                                                    style="font-size:0em;">​</span>
+            </span>​</span>
+            </span>
+            </span>
+            </span>
+            </span>
+            </span>
+            </span>
+        </eqn>
+    </section>
+    <section>
+        <eqn><span class="katex-display"><span class="katex"><span class="katex-mathml"><math><semantics><mrow><msub><mi>L</mi><mrow><mi>s</mi><mi>u</mi><mi>r</mi><mi>f</mi></mrow></msub><mo>(</mo><mi>x</mi><mo separator="true">,</mo><mi>ω</mi><mo>)</mo><mo>=</mo><msub><mi>L</mi><mi>e</mi></msub><mo>(</mo><mi>x</mi><mo separator="true">,</mo><mi>ω</mi><mo>)</mo><mo>+</mo><msub><mo>∫</mo><mrow><mi>S</mi></mrow></msub><msub><mi>ρ</mi><mi>r</mi></msub><mo>(</mo><mi>x</mi><mo separator="true">,</mo><mi>ω</mi><mo separator="true">,</mo><msup><mi>ω</mi><mrow><mi mathvariant="normal">′</mi></mrow></msup><mo>)</mo><mi>L</mi><mo>(</mo><mi>x</mi><mo separator="true">,</mo><msup><mi>ω</mi><mrow><mi mathvariant="normal">′</mi></mrow></msup><mo>)</mo><mi mathvariant="normal">∣</mi><mi>cos</mi><mrow><msup><mi>θ</mi><mrow><mi mathvariant="normal">′</mi></mrow></msup></mrow><mi mathvariant="normal">∣</mi><mi>d</mi><msup><mi>ω</mi><mrow><mi mathvariant="normal">′</mi></mrow></msup></mrow><annotation encoding="application/x-tex">L\_{surf}(x, \\omega) = L\_e(x, \\omega) + \\int\_{S}\\rho\_r(x, \\omega, \\omega&#x27;)L(x, \\omega&#x27;)|\\cos{\\theta&#x27;}|d\\omega&#x27;</annotation></semantics></math></span>
+            <span class="katex-html" aria-hidden="true"><span class="strut" style="height:1.36em;"></span><span class="strut bottom"
+                style="height:2.27225em;vertical-align:-0.91225em;"></span>
+            <span class="base displaystyle textstyle uncramped"><span class="mord"><span class="mord mathit">L</span>
+            <span class="vlist"><span style="top:0.15em;margin-right:0.05em;margin-left:0em;"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>
+            <span class="reset-textstyle scriptstyle cramped"><span class="mord scriptstyle cramped"><span class="mord mathit">s</span>
+            <span class="mord mathit">u</span>
+            <span class="mord mathit" style="margin-right:0.02778em;">r</span><span class="mord mathit" style="margin-right:0.10764em;">f</span></span>
+            </span>
+            </span><span class="baseline-fix"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>​</span>
+            </span>
+            </span><span class="mopen">(</span><span class="mord mathit">x</span><span class="mpunct">,</span>
+            <span class="mord mathit" style="margin-right:0.03588em;">ω</span><span class="mclose">)</span>
+            <span class="mrel">=</span><span class="mord"><span class="mord mathit">L</span>
+            <span class="vlist"><span style="top:0.15em;margin-right:0.05em;margin-left:0em;"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>
+            <span class="reset-textstyle scriptstyle cramped"><span class="mord mathit">e</span></span>
+            </span><span class="baseline-fix"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>​</span>
+            </span>
+            </span><span class="mopen">(</span><span class="mord mathit">x</span><span class="mpunct">,</span>
+            <span class="mord mathit" style="margin-right:0.03588em;">ω</span><span class="mclose">)</span>
+            <span class="mbin">+</span><span class="mop"><span class="op-symbol large-op mop" style="margin-right:0.44445em;top:-0.0011249999999999316em;">∫</span>
+            <span class="vlist"><span style="top:0.91225em;margin-right:0.05em;margin-left:-0.44445em;"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>
+            <span class="reset-textstyle scriptstyle cramped"><span class="mord scriptstyle cramped"><span class="mord mathit" style="margin-right:0.05764em;">S</span></span>
+            </span>
+            </span><span class="baseline-fix"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>​</span>
+            </span>
+            </span><span class="mord"><span class="mord mathit">ρ</span><span class="vlist"><span style="top:0.15em;margin-right:0.05em;margin-left:0em;"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>
+            <span class="reset-textstyle scriptstyle cramped"><span class="mord mathit" style="margin-right:0.02778em;">r</span></span>
+            </span><span class="baseline-fix"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>​</span>
+            </span>
+            </span><span class="mopen">(</span><span class="mord mathit">x</span>
+            <span class="mpunct">,</span><span class="mord mathit" style="margin-right:0.03588em;">ω</span>
+            <span class="mpunct">,</span><span class="mord"><span class="mord mathit" style="margin-right:0.03588em;">ω</span>
+            <span class="vlist"><span style="top:-0.413em;margin-right:0.05em;"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>
+            <span class="reset-textstyle scriptstyle uncramped"><span class="mord scriptstyle uncramped"><span class="mord mathrm">′</span></span>
+            </span>
+            </span><span class="baseline-fix"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>​</span>
+            </span>
+            </span><span class="mclose">)</span><span class="mord mathit">L</span>
+            <span class="mopen">(</span><span class="mord mathit">x</span><span class="mpunct">,</span>
+            <span class="mord"><span class="mord mathit" style="margin-right:0.03588em;">ω</span>
+            <span class="vlist"><span style="top:-0.413em;margin-right:0.05em;"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>
+            <span class="reset-textstyle scriptstyle uncramped"><span class="mord scriptstyle uncramped"><span class="mord mathrm">′</span></span>
+            </span>
+            </span><span class="baseline-fix"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>​</span>
+            </span>
+            </span><span class="mclose">)</span>
+            <span class="mord mathrm">∣</span><span class="mop">cos</span>
+            <span class="mord displaystyle textstyle uncramped"><span class="mord"><span class="mord mathit" style="margin-right:0.02778em;">θ</span>
+            <span class="vlist"><span style="top:-0.413em;margin-right:0.05em;"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>
+            <span class="reset-textstyle scriptstyle uncramped"><span class="mord scriptstyle uncramped"><span class="mord mathrm">′</span></span>
+            </span>
+            </span><span class="baseline-fix"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>​</span>
+            </span>
+            </span>
+            </span><span class="mord mathrm">∣</span>
+            <span class="mord mathit">d</span><span class="mord"><span class="mord mathit" style="margin-right:0.03588em;">ω</span>
+            <span class="vlist"><span style="top:-0.413em;margin-right:0.05em;"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>
+            <span class="reset-textstyle scriptstyle uncramped"><span class="mord scriptstyle uncramped"><span class="mord mathrm">′</span></span>
+            </span>
+            </span>
+            <span class="baseline-fix">
+                                                                                                                        <span
+                                                                                                                            class="fontsize-ensurer reset-size5 size5">
+                                                                                                                            <span
+                                                                                                                                style="font-size:0em;">​</span>
+            </span>​</span>
+            </span>
+            </span>
+            </span>
+            </span>
+            </span>
+            </span>
+        </eqn>
+    </section>
+    <h2>3. Scene Construction</h2>
+    <p>A sample scene was constructed for <em>godRay</em> where the interior of a faux classical temple interior receives illumination
+        from a procedurally generated exterior sun and sky light model. The only light on the interior passes through a single
+        occulus at the top of a dome centered above a sculpture.</p>
+    <h3>3.1 Sun and SKy Lighting</h3>
+    <p>The lighting for the sample temple scene uses two light sources procedurally generated from a Preetham Sun and Sky model
+        <code>reference</code>. While the preetham model is not physically acurate, it provides a copmutationaly cheap method
+        of calculating an infinite skylight that can be parameterized through a sun azimuth and sun altitude. The sunlight
+        was modeled as an infinte directional light with a small radius based on the suns solid angle.</p>
+    <h3>3.2 Temple Model Geometry</h3>
+    <p>The temple geometry was modeled in NURBS and exported into an OBJ mesh format for import into the <em>godRay</em> rendering
+        engine. A section of the temple scene geometry is diagramed in <code>figure</code>. Triangle intersection test are
+        used in the BVH ray intersection accelerator. A <em>Venus de milo</em> mesh file was used as the central piece under
+        the dome and occulus to allow for the god ray to cast onto. The mesh file is based on a 3d scan of the original sculpture
+        <code>reference</code>.</p>
+    <center><img src="./img/geometry.JPG" align="middle" width="80%" />
+      <figcaption align="middle" class="cap">Model of the temple scene</figcaption></center>
+    <h2>4. Monte Calro path tracing</h2>
+    <p>The rendering equation for the <em>godRay</em> engine was solved through brute force Monte Carlo integration. Pixel samples
+        were distributed across the CUDA cores and collected into an accumulation buffer. <em>godRay</em> uses progressive
+        rendering without tiling, where pixel samples will continue to accumulate when running the application in OpenGL
+        with the GUI, or can be specified though arguments if run without the GUI on the command line. <code>Figure</code>        describes the general path tracing procedure. Direct illumination from the sun was sampled at all scatter events
+        while the skylight contribution was included only in the indirect illumination path when an intersection miss occurred
+        with the geometry.</p>
+    <center><img src="./img/pathtrace.JPG" align="middle" width="80%" />
+      <figcaption align="middle" class="cap">Direct and Indirect Illumination paths</figcaption></center>
+    <h3>4.1 Monte Carlo Sampling</h3>
+    <p>Sampleing of the of the global illumination path is done through russian roulette termination of the resursive ray depth.
+        The technique used follows Veach's discription closly <code>reference</code>.</p>
+    <p>Sampling of the scatter events in the atmospheric media first require an intersection test of the ray with the scene
+        geometry where
+        <eq><span class="katex"><span class="katex-mathml"><math><semantics><mrow><msub><mi>t</mi><mrow><mi>s</mi><mi>u</mi><mi>r</mi><mi>f</mi></mrow></msub></mrow><annotation encoding="application/x-tex">t_{surf}</annotation></semantics></math></span>
+            <span class="katex-html" aria-hidden="true"><span class="strut" style="height:0.61508em;"></span><span class="strut bottom"
+                style="height:0.9011879999999999em;vertical-align:-0.286108em;"></span>
+            <span class="base textstyle uncramped"><span class="mord"><span class="mord mathit">t</span><span class="vlist"><span style="top:0.15em;margin-right:0.05em;margin-left:0em;"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>
+            <span class="reset-textstyle scriptstyle cramped"><span class="mord scriptstyle cramped"><span class="mord mathit">s</span>
+            <span class="mord mathit">u</span>
+            <span class="mord mathit" style="margin-right:0.02778em;">r</span><span class="mord mathit" style="margin-right:0.10764em;">f</span></span>
+            </span>
+            </span><span class="baseline-fix"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>​</span>
+            </span>
+            </span>
+            </span>
+            </span>
+            </span>
+        </eq> represents the parametric value of the intersection point along the ray.
+        <eq><span class="katex"><span class="katex-mathml"><math><semantics><mrow><msub><mi>t</mi><mrow><mi>a</mi><mi>t</mi><mi>m</mi><mi>o</mi><mi>s</mi></mrow></msub></mrow><annotation encoding="application/x-tex">t_{atmos}</annotation></semantics></math></span>
+            <span class="katex-html" aria-hidden="true"><span class="strut" style="height:0.61508em;"></span><span class="strut bottom"
+                style="height:0.76508em;vertical-align:-0.15em;"></span>
+            <span class="base textstyle uncramped"><span class="mord"><span class="mord mathit">t</span><span class="vlist"><span style="top:0.15em;margin-right:0.05em;margin-left:0em;"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>
+            <span class="reset-textstyle scriptstyle cramped"><span class="mord scriptstyle cramped"><span class="mord mathit">a</span>
+            <span class="mord mathit">t</span>
+            <span class="mord mathit">m</span><span class="mord mathit">o</span><span class="mord mathit">s</span></span>
+            </span>
+            </span><span class="baseline-fix"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>​</span>
+            </span>
+            </span>
+            </span>
+            </span>
+            </span>
+        </eq> represent the sampled atmospheric scattering point along the same ray.
+        <eq><span class="katex"><span class="katex-mathml"><math><semantics><mrow><msub><mi>t</mi><mrow><mi>a</mi><mi>t</mi><mi>m</mi><mi>o</mi><mi>s</mi></mrow></msub></mrow><annotation encoding="application/x-tex">t_{atmos}</annotation></semantics></math></span>
+            <span class="katex-html" aria-hidden="true"><span class="strut" style="height:0.61508em;"></span><span class="strut bottom"
+                style="height:0.76508em;vertical-align:-0.15em;"></span>
+            <span class="base textstyle uncramped"><span class="mord"><span class="mord mathit">t</span><span class="vlist"><span style="top:0.15em;margin-right:0.05em;margin-left:0em;"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>
+            <span class="reset-textstyle scriptstyle cramped"><span class="mord scriptstyle cramped"><span class="mord mathit">a</span>
+            <span class="mord mathit">t</span>
+            <span class="mord mathit">m</span><span class="mord mathit">o</span><span class="mord mathit">s</span></span>
+            </span>
+            </span><span class="baseline-fix"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>​</span>
+            </span>
+            </span>
+            </span>
+            </span>
+            </span>
+        </eq> derived from the <code>equation</code> describing the extintion in the media where
+        <eq><span class="katex"><span class="katex-mathml"><math><semantics><mrow><mi>ξ</mi></mrow><annotation encoding="application/x-tex">\xi</annotation></semantics></math></span>
+            <span class="katex-html" aria-hidden="true"><span class="strut" style="height:0.69444em;"></span><span class="strut bottom"
+                style="height:0.8888799999999999em;vertical-align:-0.19444em;"></span>
+            <span class="base textstyle uncramped"><span class="mord mathit" style="margin-right:0.04601em;">ξ</span></span>
+            </span>
+            </span>
+        </eq> is a uniformly distrubuted random variable.</p>
+    <section>
+        <eqn><span class="katex-display"><span class="katex"><span class="katex-mathml"><math><semantics><mrow><msub><mi>t</mi><mrow><mi>a</mi><mi>t</mi><mi>m</mi><mi>o</mi><mi>s</mi></mrow></msub><mo>=</mo><mrow><mfrac><mrow><mi>l</mi><mi>n</mi><mo>(</mo><mn>1</mn><mo>−</mo><mi>ξ</mi><mo>)</mo></mrow><mrow><msub><mi>σ</mi><mi>t</mi></msub></mrow></mfrac></mrow></mrow><annotation encoding="application/x-tex">t\_{atmos} = {ln(1 - \\xi)\\over\\sigma\_t}</annotation></semantics></math></span>
+            <span class="katex-html" aria-hidden="true"><span class="strut" style="height:1.427em;"></span><span class="strut bottom"
+                style="height:2.263em;vertical-align:-0.8360000000000001em;"></span>
+            <span class="base displaystyle textstyle uncramped"><span class="mord"><span class="mord mathit">t</span>
+            <span class="vlist"><span style="top:0.15em;margin-right:0.05em;margin-left:0em;"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>
+            <span class="reset-textstyle scriptstyle cramped"><span class="mord scriptstyle cramped"><span class="mord mathit">a</span>
+            <span class="mord mathit">t</span>
+            <span class="mord mathit">m</span><span class="mord mathit">o</span><span class="mord mathit">s</span></span>
+            </span>
+            </span><span class="baseline-fix"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>​</span>
+            </span>
+            </span><span class="mrel">=</span><span class="mord displaystyle textstyle uncramped"><span class="mord reset-textstyle displaystyle textstyle uncramped"><span class="sizing reset-size5 size5 reset-textstyle textstyle uncramped nulldelimiter"></span>
+            <span class="mfrac"><span class="vlist"><span style="top:0.686em;"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>
+            <span class="reset-textstyle textstyle cramped"><span class="mord textstyle cramped"><span class="mord"><span class="mord mathit" style="margin-right:0.03588em;">σ</span>
+            <span class="vlist"><span style="top:0.15em;margin-right:0.05em;margin-left:-0.03588em;"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>
+            <span class="reset-textstyle scriptstyle cramped"><span class="mord mathit">t</span></span>
+            </span><span class="baseline-fix"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>​</span>
+            </span>
+            </span>
+            </span>
+            </span>
+            </span><span style="top:-0.22999999999999998em;"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>
+            <span class="reset-textstyle textstyle uncramped frac-line"></span>
+            </span><span style="top:-0.677em;"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>
+            <span class="reset-textstyle textstyle uncramped"><span class="mord textstyle uncramped"><span class="mord mathit" style="margin-right:0.01968em;">l</span>
+            <span class="mord mathit">n</span><span class="mopen">(</span><span class="mord mathrm">1</span>
+            <span class="mbin">−</span><span class="mord mathit" style="margin-right:0.04601em;">ξ</span>
+            <span class="mclose">)</span>
+            </span>
+            </span>
+            </span><span class="baseline-fix"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>​</span>
+            </span>
+            </span><span class="sizing reset-size5 size5 reset-textstyle textstyle uncramped nulldelimiter"></span></span>
+            </span>
+            </span>
+            </span>
+            </span>
+            </span>
+        </eqn>
+    </section>
+    <p>with a PDF</p>
+    <section>
+        <eqn><span class="katex-display"><span class="katex"><span class="katex-mathml"><math><semantics><mrow><msub><mi>p</mi><mi>t</mi></msub><mo>(</mo><mi>t</mi><mo>)</mo><mo>=</mo><msub><mi>σ</mi><mi>t</mi></msub><msup><mi>e</mi><mrow><mo>−</mo><msub><mi>σ</mi><mi>t</mi></msub><mi>t</mi></mrow></msup></mrow><annotation encoding="application/x-tex">p\_t(t) = \\sigma\_te^{-\\sigma\_tt}</annotation></semantics></math></span>
+            <span class="katex-html" aria-hidden="true"><span class="strut" style="height:0.843556em;"></span><span class="strut bottom"
+                style="height:1.093556em;vertical-align:-0.25em;"></span>
+            <span class="base displaystyle textstyle uncramped"><span class="mord"><span class="mord mathit">p</span>
+            <span class="vlist"><span style="top:0.15em;margin-right:0.05em;margin-left:0em;"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>
+            <span class="reset-textstyle scriptstyle cramped"><span class="mord mathit">t</span></span>
+            </span><span class="baseline-fix"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>​</span>
+            </span>
+            </span><span class="mopen">(</span><span class="mord mathit">t</span><span class="mclose">)</span>
+            <span class="mrel">=</span><span class="mord"><span class="mord mathit" style="margin-right:0.03588em;">σ</span>
+            <span class="vlist"><span style="top:0.15em;margin-right:0.05em;margin-left:-0.03588em;"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>
+            <span class="reset-textstyle scriptstyle cramped"><span class="mord mathit">t</span></span>
+            </span><span class="baseline-fix"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>​</span>
+            </span>
+            </span><span class="mord"><span class="mord mathit">e</span><span class="vlist"><span style="top:-0.413em;margin-right:0.05em;"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>
+            <span class="reset-textstyle scriptstyle uncramped"><span class="mord scriptstyle uncramped"><span class="mord">−</span>
+            <span class="mord"><span class="mord mathit" style="margin-right:0.03588em;">σ</span>
+            <span class="vlist"><span style="top:0.15em;margin-right:0.07142857142857144em;margin-left:-0.03588em;"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>
+            <span class="reset-scriptstyle scriptscriptstyle cramped"><span class="mord mathit">t</span></span>
+            </span><span class="baseline-fix"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>​</span>
+            </span>
+            </span><span class="mord mathit">t</span></span>
+            </span>
+            </span><span class="baseline-fix"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>​</span>
+            </span>
+            </span>
+            </span>
+            </span>
+            </span>
+            </span>
+        </eqn>
+    </section>
+    <p>Sampling of the solid angle for surface scatter events uses cosine weighted hemisphere sampling so that more sampling
+        occurs in areas of the hemisphere where more total irrandiance is likely to come from. The pdf is:
+        <eq><span class="katex"><span class="katex-mathml"><math><semantics><mrow><mi>p</mi><mo>(</mo><mi>x</mi><mo separator="true">,</mo><mi>ω</mi><mo separator="true">,</mo><msup><mi>ω</mi><mrow><mi mathvariant="normal">′</mi></mrow></msup><mo>)</mo><mo>=</mo><mrow><mi>cos</mi><mi>θ</mi><mi mathvariant="normal">/</mi><mi>π</mi></mrow></mrow><annotation encoding="application/x-tex">p(x, \omega, \omega') = {\cos\theta/\pi}</annotation></semantics></math></span>
+            <span class="katex-html" aria-hidden="true"><span class="strut" style="height:0.751892em;"></span><span class="strut bottom"
+                style="height:1.001892em;vertical-align:-0.25em;"></span>
+            <span class="base textstyle uncramped"><span class="mord mathit">p</span><span class="mopen">(</span><span class="mord mathit">x</span>
+            <span class="mpunct">,</span>
+            <span class="mord mathit" style="margin-right:0.03588em;">ω</span><span class="mpunct">,</span><span class="mord"><span class="mord mathit" style="margin-right:0.03588em;">ω</span>
+            <span class="vlist"><span style="top:-0.363em;margin-right:0.05em;"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>
+            <span class="reset-textstyle scriptstyle uncramped"><span class="mord scriptstyle uncramped"><span class="mord mathrm">′</span></span>
+            </span>
+            </span><span class="baseline-fix"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>​</span>
+            </span>
+            </span><span class="mclose">)</span><span class="mrel">=</span><span class="mord textstyle uncramped"><span class="mop">cos</span>
+            <span class="mord mathit" style="margin-right:0.02778em;">θ</span><span class="mord mathrm">/</span>
+            <span class="mord mathit" style="margin-right:0.03588em;">π</span>
+            </span>
+            </span>
+            </span>
+            </span>
+        </eq>. Sampling of the solid angle for non terminated indirect paths for atmospheric scatter events follows from solving
+        the Henyey-Greenstien phase function for
+        <eq><span class="katex"><span class="katex-mathml"><math><semantics><mrow><mi>cos</mi><mi>θ</mi></mrow><annotation encoding="application/x-tex">\cos\theta</annotation></semantics></math></span>
+            <span class="katex-html" aria-hidden="true"><span class="strut" style="height:0.69444em;"></span><span class="strut bottom"
+                style="height:0.69444em;vertical-align:0em;"></span>
+            <span class="base textstyle uncramped"><span class="mop">cos</span><span class="mord mathit" style="margin-right:0.02778em;">θ</span></span>
+            </span>
+            </span>
+        </eq> where given some uniformly distributed random variable
+        <eq><span class="katex"><span class="katex-mathml"><math><semantics><mrow><mi>ξ</mi></mrow><annotation encoding="application/x-tex">\xi</annotation></semantics></math></span>
+            <span class="katex-html" aria-hidden="true"><span class="strut" style="height:0.69444em;"></span><span class="strut bottom"
+                style="height:0.8888799999999999em;vertical-align:-0.19444em;"></span>
+            <span class="base textstyle uncramped"><span class="mord mathit" style="margin-right:0.04601em;">ξ</span></span>
+            </span>
+            </span>
+        </eq>
+    </p>
+    <section>
+        <eqn><span class="katex-display"><span class="katex"><span class="katex-mathml"><math><semantics><mrow><mi>cos</mi><mi>θ</mi><mo>=</mo><mrow><mfrac><mrow><mn>1</mn></mrow><mrow><mn>2</mn><mi>g</mi></mrow></mfrac></mrow><mrow><mo fence="true">(</mo><mn>1</mn><mo>+</mo><msup><mi>g</mi><mn>2</mn></msup><mo>−</mo><msup><mrow><mo fence="true">(</mo><mrow><mfrac><mrow><mn>1</mn><mo>−</mo><msup><mi>g</mi><mn>2</mn></msup></mrow><mrow><mn>1</mn><mo>−</mo><mi>g</mi><mo>+</mo><mn>2</mn><mi>g</mi><mi>ξ</mi></mrow></mfrac></mrow><mo fence="true">)</mo></mrow><mn>2</mn></msup><mo fence="true">)</mo></mrow></mrow><annotation encoding="application/x-tex">\\cos\\theta = {1\\over2g}\\left( 1 + g^2 - \\left( {1-g^2\\over1-g+2g\\xi} \\right)^2 \\right)</annotation></semantics></math></span>
+            <span class="katex-html" aria-hidden="true"><span class="strut" style="height:1.556216em;"></span><span class="strut bottom"
+                style="height:2.506246em;vertical-align:-0.95003em;"></span>
+            <span class="base displaystyle textstyle uncramped"><span class="mop">cos</span><span class="mord mathit" style="margin-right:0.02778em;">θ</span>
+            <span class="mrel">=</span>
+            <span class="mord displaystyle textstyle uncramped"><span class="mord reset-textstyle displaystyle textstyle uncramped"><span class="sizing reset-size5 size5 reset-textstyle textstyle uncramped nulldelimiter"></span>
+            <span class="mfrac"><span class="vlist"><span style="top:0.6860000000000002em;"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>
+            <span class="reset-textstyle textstyle cramped"><span class="mord textstyle cramped"><span class="mord mathrm">2</span>
+            <span class="mord mathit" style="margin-right:0.03588em;">g</span>
+            </span>
+            </span>
+            </span><span style="top:-0.22999999999999998em;"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>
+            <span class="reset-textstyle textstyle uncramped frac-line"></span>
+            </span><span style="top:-0.677em;"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>
+            <span class="reset-textstyle textstyle uncramped"><span class="mord textstyle uncramped"><span class="mord mathrm">1</span></span>
+            </span>
+            </span><span class="baseline-fix"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>​</span>
+            </span>
+            </span><span class="sizing reset-size5 size5 reset-textstyle textstyle uncramped nulldelimiter"></span></span>
+            </span><span class="minner displaystyle textstyle uncramped"><span class="style-wrap reset-textstyle textstyle uncramped" style="top:0em;"><span class="delimsizing size3">(</span></span>
+            <span class="mord mathrm">1</span><span class="mbin">+</span><span class="mord"><span class="mord mathit" style="margin-right:0.03588em;">g</span>
+            <span class="vlist"><span style="top:-0.413em;margin-right:0.05em;"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>
+            <span class="reset-textstyle scriptstyle uncramped"><span class="mord mathrm">2</span></span>
+            </span><span class="baseline-fix"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>​</span>
+            </span>
+            </span><span class="mbin">−</span><span class="minner"><span class="minner displaystyle textstyle uncramped"><span class="style-wrap reset-textstyle textstyle uncramped" style="top:0em;"><span class="delimsizing size3">(</span></span>
+            <span class="mord displaystyle textstyle uncramped"><span class="mord reset-textstyle displaystyle textstyle uncramped"><span class="sizing reset-size5 size5 reset-textstyle textstyle uncramped nulldelimiter"></span>
+            <span class="mfrac"><span class="vlist"><span style="top:0.6860000000000002em;"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>
+            <span class="reset-textstyle textstyle cramped"><span class="mord textstyle cramped"><span class="mord mathrm">1</span>
+            <span class="mbin">−</span><span class="mord mathit" style="margin-right:0.03588em;">g</span>
+            <span class="mbin">+</span><span class="mord mathrm">2</span><span class="mord mathit" style="margin-right:0.03588em;">g</span>
+            <span class="mord mathit" style="margin-right:0.04601em;">ξ</span>
+            </span>
+            </span>
+            </span><span style="top:-0.22999999999999998em;"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>
+            <span class="reset-textstyle textstyle uncramped frac-line"></span>
+            </span><span style="top:-0.677em;"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>
+            <span class="reset-textstyle textstyle uncramped"><span class="mord textstyle uncramped"><span class="mord mathrm">1</span>
+            <span class="mbin">−</span><span class="mord"><span class="mord mathit" style="margin-right:0.03588em;">g</span>
+            <span class="vlist"><span style="top:-0.363em;margin-right:0.05em;"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>
+            <span class="reset-textstyle scriptstyle uncramped"><span class="mord mathrm">2</span></span>
+            </span><span class="baseline-fix"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>​</span>
+            </span>
+            </span>
+            </span>
+            </span>
+            </span><span class="baseline-fix"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>​</span>
+            </span>
+            </span><span class="sizing reset-size5 size5 reset-textstyle textstyle uncramped nulldelimiter"></span></span>
+            </span><span class="style-wrap reset-textstyle textstyle uncramped" style="top:0em;"><span class="delimsizing size3">)</span></span>
+            </span><span class="vlist"><span style="top:-1.105108em;margin-right:0.05em;"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>
+            <span class="reset-textstyle scriptstyle uncramped"><span class="mord mathrm">2</span></span>
+            </span><span class="baseline-fix"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>​</span>
+            </span>
+            </span><span class="style-wrap reset-textstyle textstyle uncramped" style="top:0em;"><span class="delimsizing size3">)</span></span>
+            </span>
+            </span>
+            </span>
+            </span>
+            </span>
+        </eqn>
+    </section>
+    <p>Given that the phase function is normalized the PDF is the evaluation of the function
+        <eq><span class="katex"><span class="katex-mathml"><math><semantics><mrow><msub><mi>ρ</mi><mi>p</mi></msub><mo>(</mo><mi>x</mi><mo separator="true">,</mo><msup><mi>ω</mi><mrow><mi mathvariant="normal">′</mi></mrow></msup><mo separator="true">,</mo><mi>ω</mi><mo>)</mo></mrow><annotation encoding="application/x-tex">\rho_p(x, \omega', \omega)</annotation></semantics></math></span>
+            <span class="katex-html" aria-hidden="true"><span class="strut" style="height:0.751892em;"></span><span class="strut bottom"
+                style="height:1.038em;vertical-align:-0.286108em;"></span>
+            <span class="base textstyle uncramped"><span class="mord"><span class="mord mathit">ρ</span><span class="vlist"><span style="top:0.15em;margin-right:0.05em;margin-left:0em;"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>
+            <span class="reset-textstyle scriptstyle cramped"><span class="mord mathit">p</span></span>
+            </span><span class="baseline-fix"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>​</span>
+            </span>
+            </span><span class="mopen">(</span><span class="mord mathit">x</span><span class="mpunct">,</span>
+            <span class="mord"><span class="mord mathit" style="margin-right:0.03588em;">ω</span><span class="vlist"><span style="top:-0.363em;margin-right:0.05em;"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>
+            <span class="reset-textstyle scriptstyle uncramped"><span class="mord scriptstyle uncramped"><span class="mord mathrm">′</span></span>
+            </span>
+            </span><span class="baseline-fix"><span class="fontsize-ensurer reset-size5 size5"><span style="font-size:0em;">​</span></span>​</span>
+            </span>
+            </span><span class="mpunct">,</span><span class="mord mathit" style="margin-right:0.03588em;">ω</span>
+            <span class="mclose">)</span>
+            </span>
+            </span>
+            </span>
+        </eq>.</p>
+    <p>When considering the direct illumination sampling of the sunlight is done through uniform disk sampling based off of
+        the radius of the modeled sun.</p>
+    <h3>4.2 Pathtracing in CUDA</h3>
+    <p>Due to limits on the stack depth in CUDA, implementing the rendering equation for <em>godRay</em> in requires that the
+        path tracing be done iteratively rather than recursively. This requires that the throughput of atmospheric attenuation,
+        <code>tr</code> and global illumination path weight, <code>beta</code>, be separately tracked through each iteration
+        of the main global illumination rendering loop. The algorithm described is written in generalized pseudo code, however
+        you can refer to the CUDA source code for specific implementation syntax and details of all functions.</p>
+    <p>Main rendering loop in <a href="http://pathtracer.cu">pathtracer.cu</a></p>
+    <pre class="hljs"><code><div><span class="hljs-comment">// return radiance of the pixel sample</span>
+<span class="hljs-function">float3 <span class="hljs-title">renderPixel</span><span class="hljs-params">(float2 pixel_index)</span> </span>{
+    <span class="hljs-keyword">unsigned</span> <span class="hljs-keyword">int</span> seed;
+
+    <span class="hljs-comment">// Sample the Current Pixel</span>
+    float2 pixel_sample = samplePixel(seed);
+
+    <span class="hljs-comment">// Generate Camera Ray for current Sample</span>
+    float3 ray_origin;
+    float3 ray_dir;
+    genPinholeCameraRay(&amp;ray_origin, &amp;ray_dir, pixel_sample);
+
+    <span class="hljs-comment">// Per Ray Data Structure</span>
+    PerRayData_radiance prd;
+    prd.beta = float3(<span class="hljs-number">1.0f</span>);
+    prd.tr = float3(<span class="hljs-number">1.0f</span>);
+    prd.radiance = float3(<span class="hljs-number">0.0f</span>);
+
+    <span class="hljs-comment">// Next ray to be traced</span>
+    prd.origin = make_float3(<span class="hljs-number">0.0f</span>);
+    prd.direction = make_float3(<span class="hljs-number">0.0f</span>);
+
+    <span class="hljs-comment">// Accumulated Radiance for the Sample</span>
+    float3 L = make_float3(<span class="hljs-number">0.0f</span>);
+
+    <span class="hljs-comment">// Main Global Illumination Pathtrace</span>
+    <span class="hljs-keyword">for</span> (<span class="hljs-keyword">int</span> i = <span class="hljs-number">0</span>; i &lt; max_depth; ++i) {
+        <span class="hljs-comment">// Generate Ray for current ray segment</span>
+        <span class="hljs-function">Ray <span class="hljs-title">ray</span><span class="hljs-params">(ray_origin, ray_dir, scene_epsilon)</span></span>;
+        <span class="hljs-comment">// Trace ray and intersect with scene geometry</span>
+        rtTrace(top_object, ray, prd);
+
+        <span class="hljs-comment">// rtTrace calls a new CUDA material kernel depending on ray intersection. This kernel is defined in material.cu</span>
+        <span class="hljs-comment">// prd struct is updated on return from rtTrace</span>
+
+        <span class="hljs-comment">// Add transmittance radiance from path segment to L</span>
+        L += prd.tr * prd.radiance;
+
+        <span class="hljs-comment">// russian roulette termination | pbrt 879</span>
+        <span class="hljs-keyword">if</span> (prd.depth &gt; min_depth) {
+            <span class="hljs-keyword">float</span> q = <span class="hljs-number">1.0f</span> - prd.beta.y;
+            <span class="hljs-keyword">if</span> (q &lt; <span class="hljs-number">0.05f</span>) q = <span class="hljs-number">0.05f</span>;
+            <span class="hljs-keyword">if</span> (rnd(prd.seed) &lt; q)
+                <span class="hljs-keyword">break</span>;
+            <span class="hljs-comment">// update beta to account for russian roulette termination probability</span>
+            prd.beta /= <span class="hljs-number">1.0f</span> - q;
+        }
+
+        <span class="hljs-comment">// Update ray data for the next path segment</span>
+        ray_origin = prd.origin;
+        ray_dir = prd.direction;
+    }
+    <span class="hljs-keyword">return</span> L;
+}
+</div></code></pre>
+    <p><a href="http://material.cu">material.cu</a> defines the routines for updating per ray data. All materials in <em>godRay</em>        are Lambertian diffuse materials. Atmospheric scattering is accounted for as a conditional test in the material shader.
+        If atmospheric scattering occurs, the intersection is updated and estimated direct lighting is computed according
+        to the intersection type (atmospheric or diffuse).</p>
+    <pre class="hljs"><code><div><span class="hljs-comment">// Lambertian Diffuse Intersection Kernel</span>
+<span class="hljs-function"><span class="hljs-keyword">void</span> <span class="hljs-title">diffuse_hit_radiance</span><span class="hljs-params">()</span> </span>{
+    <span class="hljs-comment">// Find the distance to the closest intersection</span>
+    <span class="hljs-keyword">const</span> float3 fhp = ray.origin + t_hit * ray.direction;
+    <span class="hljs-keyword">float</span> isect_dist = length(fhp - ray.origin);
+
+    <span class="hljs-comment">// Determine if scatter occured in atmosphere</span>
+    <span class="hljs-keyword">if</span> (atmos_scatter(prd_radiance.seed, isect_dist)) {
+        <span class="hljs-comment">// Handle Atmosphere scatter</span>
+        <span class="hljs-comment">// -------------------------</span>
+
+        <span class="hljs-comment">// Update Intersection</span>
+        float3 isect = ray.origin + isect_dist * ray.direction;
+
+        <span class="hljs-comment">// Esitmate Direct Lighting from Sun</span>
+        prd.radiance = prd.beta * estimate_direct_light(isect, ATMOS, -prd_.direction);
+
+        <span class="hljs-comment">// Compute transmittance and atmopsheric PDF</span>
+        float3 transmittance = expf(-<span class="hljs-keyword">atmos_sigma_t</span> * isect_dist);
+        float3 density = <span class="hljs-keyword">atmos_sigma_t</span> * transmittance;
+        <span class="hljs-keyword">float</span> atmos_pdf = (density.x + density.y + density.z) / <span class="hljs-number">3.0f</span>;
+
+        <span class="hljs-comment">// Set weighting for atmospheric transmittance</span>
+        prd.tr *= transmittance * atmos_sigma_s / atmos_pdf;
+
+        <span class="hljs-comment">// Sample solid angle of atmos scatter bounce</span>
+        float3 w_in = float3(<span class="hljs-number">0.0f</span>);
+        <span class="hljs-keyword">float</span> p *= hg_sample_phase(atmos_g, -ray.direction, w_in);
+
+        <span class="hljs-comment">// Set next ray bounce</span>
+        prd.origin = isect;
+        prd.direction = w_in;
+    }
+    <span class="hljs-keyword">else</span> {
+        <span class="hljs-comment">// Handle scatting at point on diffuse surface</span>
+        <span class="hljs-comment">// -------------------------------------------</span>
+
+        <span class="hljs-comment">// Compute the transmittance and sampleing density</span>
+        float3 transmittance = expf(-<span class="hljs-keyword">atmos_sigma_t</span> * isect_dist);
+        <span class="hljs-keyword">float</span> atmos_pdf = (transmittance.x + transmittance.y + transmittance.z) / <span class="hljs-number">3.0f</span>;
+
+        <span class="hljs-comment">// Return weighting factor for scattering from surface and atmosphere</span>
+        prd.tr *= transmittance / atmos_pdf;
+
+        <span class="hljs-comment">// Calculate world surface normal</span>
+        <span class="hljs-keyword">const</span> float3 ffnormal = faceforward(world_shading_normal, -ray.direction, world_geometric_normal);
+
+        <span class="hljs-comment">// Sample surface solid angle</span>
+        float3 bsdf_f = Kd / M_PIf;
+        <span class="hljs-keyword">float</span> bsdf_pdf;
+        float3 w_in = cwh_sample(bsdf_pdf);
+
+        <span class="hljs-comment">// Set next ray bounce</span>
+        prd.origin = fhp;
+        prd.direction = w_in;
+
+        <span class="hljs-comment">// Esitmate Direct Lighting</span>
+        prd.radiance = prd.beta * estimate_direct_light(fhp, DIFFUSE, -prd_radiance.direction);
+
+        prd.beta *= bsdf_f * dot(ffnormal, w_in) / bsdf_pdf;
+}
+
+</div></code></pre>
+    <h2>5. Results</h2>
+    <p>Images were generated for all of the parameters concerning the rendering of the god ray in the scene. The following image
+        sequences describe the variation of parameter values and the effect on the scene image.</p>
+    <h3>5.1 Extinction Coefficient</h3>
+    <p>The extinction coefficient increases the probability of scattering, as well as increases the attenuation rate of rays
+        as they pass through a media. In the figures below we can observe the scene becoming darker as the extinction coefficient
+        increases.
+    </p>
+    <center>
+    <table style="width=80%">
+        <tr>
+            <td>
+              <img src="./img/atmos_extinction_0.001.png" align="middle" />
+                <figcaption align="middle" class="cap">Extinction Coefficient = 0.001</figcaption>
+            </td>
+            <td>
+              <img src="./img/atmos_extinction_0.002.png" align="middle" />
+                <figcaption align="middle" class="cap">Extinction Coefficient = 0.002</figcaption>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <img src="./img/atmos_extinction_0.004.png" align="middle" />
+                <figcaption align="middle" class="cap">Extinction Coefficient = 0.004</figcaption>
+            </td>
+            <td>
+              <img src="./img/atmos_extinction_0.008.png" align="middle" />
+                <figcaption align="middle" class="cap">Extinction Coefficient = 0.008</figcaption>
+            </td>
+        </tr>
+    </table>
+    </center>
+    <h3>5.2 Scatter coefficient</h3>
+    <p>The Scatter coefficient affects the amount scattered into a differential segment of media. This is different than the
+        out-scatter coefficient which is bundled together with the extinction coefficient. The in-scatter coefficient, as
+        seen below, changes how much light is bouncing around within the scene. A larger scattering coefficient will produce
+        a brighter image, as more light enters the dark room where the statue is.</p>
+    <center>
+    <table style="width=80%">
+        <tr>
+            <td>
+              <img src="./img/atmos_in_scatter_0.001.png" align="middle" />
+                <figcaption align="middle" class="cap">Scatter Coefficient = 0.001</figcaption>
+            </td>
+            <td>
+              <img src="./img/atmos_in_scatter_0.002.png" align="middle" />
+                <figcaption align="middle" class="cap">Scatter Coefficient = 0.002</figcaption>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <img src="./img/atmos_in_scatter_0.004.png" align="middle" />
+                <figcaption align="middle" class="cap">Scatter Coefficient = 0.004</figcaption>
+            </td>
+            <td>
+              <img src="./img/atmos_in_scatter_0.008.png" align="middle" />
+                <figcaption align="middle" class="cap">Scatter Coefficient = 0.008</figcaption>
+            </td>
+        </tr>
+    </table>
+    </center>
+    <h3>5.3 Phase Function</h3>
+    <p>The scattering phase function coefficient is the coefficient
+        <eq><span class="katex"><span class="katex-mathml"><math><semantics><mrow><mi>g</mi></mrow><annotation encoding="application/x-tex">g</annotation></semantics></math></span>
+            <span class="katex-html" aria-hidden="true"><span class="strut" style="height:0.43056em;"></span><span class="strut bottom"
+                style="height:0.625em;vertical-align:-0.19444em;"></span>
+            <span class="base textstyle uncramped"><span class="mord mathit" style="margin-right:0.03588em;">g</span></span>
+            </span>
+            </span>
+        </eq> in Henyey-Greensteein's phase function. Observe the effect of
+        <eq><span class="katex"><span class="katex-mathml"><math><semantics><mrow><mi>g</mi></mrow><annotation encoding="application/x-tex">g</annotation></semantics></math></span>
+            <span class="katex-html" aria-hidden="true"><span class="strut" style="height:0.43056em;"></span><span class="strut bottom"
+                style="height:0.625em;vertical-align:-0.19444em;"></span>
+            <span class="base textstyle uncramped"><span class="mord mathit" style="margin-right:0.03588em;">g</span></span>
+            </span>
+            </span>
+        </eq> as it increases from 0.1 to 0.99 and -0.1 to -0.99. Specifically, when the coefficient is close to 0 we observe isotropic
+        scattering. A larger negative value produces backscattering while a larger positive value produces forward scattering.
+        The effects of each can be observed when focusing on the face of the statue and the disk of light at its feet. Backscattering
+        will illuminate the face while forward scattering will make the disk at the base brighter.</p>
+    <center>
+    <table style="width=80%">
+        <tr>
+            <td>
+              <img src="./img/atmos_phase_g_0.1.png" align="middle" />
+                <figcaption align="middle" class="cap">Scatter Phase Coefficient (G) = 0.1</figcaption>
+            </td>
+            <td>
+              <img src="./img/atmos_phase_g_0.5.png" align="middle" />
+                <figcaption align="middle" class="cap">Scatter Phase Coefficient (G) = 0.5</figcaption>
+            </td>
+            <td>
+              <img src="./img/atmos_phase_g_0.99.png" align="middle" />
+                <figcaption align="middle" class="cap">Scatter Phase Coefficient (G) = 0.99</figcaption>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <img src="./img/atmos_phase_g_-0.1.png" align="middle" />
+                <figcaption align="middle" class="cap">Scatter Phase Coefficient (G) = -0.1</figcaption>
+            </td>
+            <td>
+              <img src="./img/atmos_phase_g_-0.5.png" align="middle" />
+                <figcaption align="middle" class="cap">Scatter Phase Coefficient (G) = -0.5</figcaption>
+            </td>
+            <td>
+              <img src="./img/atmos_phase_g_-0.99.png" align="middle" />
+                <figcaption align="middle" class="cap">Scatter Phase Coefficient (G) = -0.99</figcaption>
+            </td>
+        </tr>
+    </table>
+    </center>
+    <h3>5.4 Helios coefficient</h3>
+    <p>The helios coefficient is an atmospheric radiance amplifier we added to the monte carlo integration. This helps produce
+        a sharper contrast from areas where scattering is not taking place as often. The below images demonstrates the effect,
+        where the coefficient is set to 1 we have a nearly dark room as scattering events in the atmosphere contribute very
+        little radiance. A higher helios coefficient will bring out the god ray effect, as scattering events become more
+        apparent.
+    </p>
+    <center>
+    <table style="width=80%">
+        <tr>
+            <td>
+              <img src="./img/atmos_helios_1.png" align="middle" />
+                <figcaption align="middle" class="cap">Helios Coefficient = 1</figcaption>
+            </td>
+            <td>
+              <img src="./img/atmos_helios_2.png" align="middle" />
+                <figcaption align="middle" class="cap">Helios Coefficient = 2</figcaption>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <img src="./img/atmos_helios_4.png" align="middle" />
+                <figcaption align="middle" class="cap">Helios Coefficient = 4</figcaption>
+            </td>
+            <td>
+              <img src="./img/atmos_helios_8.png" align="middle" />
+                <figcaption align="middle" class="cap">Helios Coefficient = 8</figcaption>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <img src="./img/atmos_helios_16.png" align="middle" />
+                <figcaption align="middle" class="cap">Helios Coefficient = 16</figcaption>
+            </td>
+            <td>
+              <img src="./img/atmos_helios_32.png" align="middle" />
+                <figcaption align="middle" class="cap">Helios Coefficient = 32</figcaption>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <img src="./img/atmos_helios_64.png" align="middle" />
+                <figcaption align="middle" class="cap">Helios Coefficient = 64</figcaption>
+            </td>
+            <td>
+              <img src="./img/atmos_helios_100.png" align="middle" />
+                <figcaption align="middle" class="cap">Helios Coefficient = 100</figcaption>
+            </td>
+        </tr>
+    </table>
+    </center>
+
+    <h3>5.5 Sun elevation and rotation</h3>
+    <p>We can also observe the effects of the god ray at various angles throughout the scene by rotating the sun and changing the sun's elevation. Observe the following video clips for pre-rendered scenes of the light changes.
+    </p>
+    <center><iframe width="560" height="315" src="https://www.youtube.com/embed/aJqMzNpQ-FU" frameborder="0" allowfullscreen></iframe></center>
+
+    <center><iframe width="560" height="315" src="https://www.youtube.com/embed/iqxNA1AzJeE" frameborder="0" allowfullscreen></iframe></center>
+
+
+    <h2>6. Conclusion</h2>
+    Overall, this has been a fantastic project to work on. Accelerating ray tracing by means of a graphics card allowed us to achieve great rendering results. A computationally difficult problem becomes much more feasible, which resulted in a faster turn around with testing parameters. We were able to produce many different results, with high variation and low latency between tests. The following video demonstrates all of the features of the godRay software and the different effects that can be achieved.
+    <center><iframe width="560" height="315" src="https://www.youtube.com/embed/8tzhNNzsz7k" frameborder="0" allowfullscreen></iframe></center>
+
+    <h2>7. Contributions</h2>
+    <p>The authors would like to thank Professor Ren Ng of UC Berkeley’s Foundations of Computer Graphics course.</p>
+
+    <h2>8. References</h2>
+    <p>[1] Wojciech Jarosz. 2008. Efcient Monte Carlo Methods for Light Transport in Scattering Media. Ph.D. Dissertation. UC San Diego, La Jolla, CA, USA. Advisor(s). Henrik Wann Jensen and Mathias Zwicker.</p>
+    <p>[2] James T. Kajiya. 1986. Te Rendering Equation. SIGGRAPH Comput. Graph. 20, 4 (Aug. 1986), 143–150. htps://doi.org/10.1145/15886.15902</p>
+    <p>[3] A.J.Preetham, PeterShirley, andBrianSmits.1999. APracticalAnalyticModelfor Daylight. In Proceedings of the 26th Annual Conference on Computer Graphics and Interactive Techniques (SIGGRAPH ’99). ACM Press/Addison-Wesley Publishing Co., New York, NY, USA, 91–100. htps://doi.org/10.1145/311535.311545</p>
+    <p>[4] Dominique Toublanc. 1996. Henyey–Greenstein and Mie phase functions in Monte Carlo radiative transfer computations. Appl. Opt. 35, 18 (Jun 1996), 3270–3274. htps://doi.org/10.1364/AO.35.003270</p>
+    <p>[5] Eric Veach and Leonidas J. Guibas. 1997. Metropolis Light Transport. In Computer Graphics (SIGGRAPH ’97 Proceedings. Addison Wesley, 65–76.</p>
+
+</body>
+
+</html>
